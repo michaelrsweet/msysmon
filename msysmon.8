@@ -12,6 +12,10 @@ msysmon \- mike's system monitor
 .SH SYNOPSIS
 .B msysmon
 [
+.B \-\-help
+] [
+.B \-\-version
+] [
 .B \-C
 .I CPU-LIMIT
 ] [
@@ -34,6 +38,12 @@ provides a simple web interface to view up to the last four weeks of system
 usage and download the data as CSV files for offline processing.
 .SH OPTIONS
 .TP 5
+.B \-\-help
+Shows program usage.
+.TP 5
+.B \-\-version
+Shows program version.
+.TP 5
 \fB\-C \fICPU-LIMIT\fR
 Specifies the minimum CPU usage (as a percentage) that will trigger monitoring of a process.
 The default is 10%.
@@ -41,11 +51,11 @@ The default is 10%.
 \fB\-M \fIMEMORY-LIMIT\fR
 Specifies the minimum virtual memory usage that will trigger monitoring of a process.
 The default is 5% of available real system memory.
-The limit can use the unit suffix "k" for multiples of 1,024 bytes, "m" for multiples of 1,048,576 bytes, or "g" for multiples of 1,073,741,824 bytes.
+The limit can use the unit suffix "%" for a percentage of real memory, "k" for multiples of 1,024 bytes, "m" for multiples of 1,048,576 bytes, or "g" for multiples of 1,073,741,824 bytes.
 .TP 5
 \fB\-p \fIPORT-NUMBER\fR
 Specifies the port number of the web interface.
-The default post number is 60080.
+The default post number is 10080.
 .TP 5
 \fB\-w \fICOMMAND\fR
 Explicitly watches the specified command.
