@@ -1,7 +1,7 @@
-Mike's Linux System Monitor (msysmon)
-=====================================
+Mike's System Monitor (msysmon)
+===============================
 
-Mike's Linux System Monitor (msysmon) is an administrator/developer tool for
+Mike's System Monitor (msysmon) is an administrator/developer tool for
 monitoring the CPU, memory, network, and storage usage on Linux systems via the
 `/proc` filesystem.
 
@@ -37,7 +37,7 @@ Running
 Legal Stuff
 -----------
 
-Mike's Linux System Monitor is Copyright © 2026 by Michael R Sweet.
+Mike's System Monitor is Copyright © 2026 by Michael R Sweet.
 
 This software is licensed under the Apache License Version 2.0.  See the files
 "LICENSE" and "NOTICE" for more information.

@@ -1,0 +1,58 @@
+.\"
+.\" Man page for Mike's System Monitor.
+.\"
+.\" Copyright © 2026 by Michael R Sweet
+.\"
+.\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
+.\" information.
+.\"
+.TH msysmon 1 "msysmon" "2026-08-06" "Michael R Sweet"
+.SH NAME
+msysmon \- mike's system monitor
+.SH SYNOPSIS
+.B msysmon
+[
+.B \-C
+.I CPU-LIMIT
+] [
+.B \-M
+.I MEMORY-LIMIT
+] [
+.B \-p
+.I PORT-NUMBER
+] [
+.B \-w
+.I COMMAND
+]
+.SH DESCRIPTION
+.B msysmon
+monitors the running system and its processes to identify trends and peak users
+of CPU, memory, network, and storage on the system.
+By default,
+.B msysmon
+provides a simple web interface to view up to the last four weeks of system
+usage and download the data as CSV files for offline processing.
+.SH OPTIONS
+.TP 5
+\fB\-C \fICPU-LIMIT\fR
+Specifies the minimum CPU usage (as a percentage) that will trigger monitoring of a process.
+The default is 10%.
+.TP 5
+\fB\-M \fIMEMORY-LIMIT\fR
+Specifies the minimum virtual memory usage that will trigger monitoring of a process.
+The default is 5% of available real system memory.
+The limit can use the unit suffix "k" for multiples of 1,024 bytes, "m" for multiples of 1,048,576 bytes, or "g" for multiples of 1,073,741,824 bytes.
+.TP 5
+\fB\-p \fIPORT-NUMBER\fR
+Specifies the port number of the web interface.
+The default post number is 60080.
+.TP 5
+\fB\-w \fICOMMAND\fR
+Explicitly watches the specified command.
+By default
+.B msysmon
+watches any process that exceeds the specified CPU or memory limits.
+.SH SEE ALSO
+.BR proc (5)
+.SH COPYRIGHT
+Copyright \[co] 2026 by Michael R Sweet.

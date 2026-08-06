@@ -1,0 +1,103 @@
+#
+# Makefile for Mike's System Monitor.
+#
+# Copyright © 2026 by Michael R Sweet
+#
+# Licensed under Apache License v2.0.  See the file "LICENSE" for more
+# information.
+#
+
+# POSIX makefile
+.POSIX:
+
+
+# Build silently
+.SILENT:
+
+
+# Version number...
+VERSION	=	@VERSION@
+
+
+# Programs and options...
+CC		=	@CC@
+CFLAGS		=	-I.. @CFLAGS@ $(CPPFLAGS) $(OPTIM) $(WARNINGS)
+CPPFLAGS	=	@CPPFLAGS@ '-DVERSION="$(VERSION)"'
+INSTALL		=	@INSTALL@
+LDFLAGS		=	@LDFLAGS@ $(OPTIM)
+LIBS		=	@LIBS@
+OPTIM		=	@OPTIM@
+RM		=	@RM@ -f
+SHELL		=	/bin/sh
+WARNINGS	=	@WARNINGS@
+
+
+# Directories...
+bindir		=	@bindir@
+datadir		=	@datadir@
+datarootdir	=	@datarootdir@
+docdir		=	@docdir@
+exec_prefix	=	@exec_prefix@
+includedir	=	@includedir@
+infodir		=	@infodir@
+libdir		=	@libdir@
+libexecdir	=	@libexecdir@
+localstatedir	=	@localstatedir@
+mandir		=	@mandir@
+oldincludedir	=	@oldincludedir@
+prefix		=	@prefix@
+privateinclude	=	@privateinclude@
+sbindir		=	@sbindir@
+sharedstatedir	=	@sharedstatedir@
+srcdir		=	@srcdir@
+sysconfdir	=	@sysconfdir@
+top_srcdir	=	@top_srcdir@
+unitdir		=	@unitdir@
+
+BUILDROOT	=	${DSTROOT}${RPM_BUILD_ROOT}${DESTDIR}
+
+
+# Project targets...
+OBJS		=	\
+			data.o \
+			msysmon.o \
+			webif.o
+TARGETS		=	\
+			msysmon
+
+
+# General build rules...
+.SUFFIXES:	.c .o
+.c.o:
+	echo "Compiling $<..."
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+# Build targets...
+all:		$(TARGETS)
+
+
+clean:
+	echo "Cleaning all output..."
+	$(RM) $(TARGETS) $(OBJS)
+
+
+install:	$(TARGETS)
+	echo "Installing msysmon to $(BUILDROOT)$(sbindir)..."
+	$(INSTALL) -d -m 755 $(BUILDROOT)$(sbindir)
+	$(INSTALL) -c -m 755 msysmon $(BUILDROOT)$(sbindir)
+	echo "Installing documentation to $(BUILDROOT)$(mandir)..."
+	$(INSTALL) -d -m 755 $(BUILDROOT)$(mandir)/man8
+	$(INSTALL) -c -m 644 msysmon.8 $(BUILDROOT)$(mandir)/man8
+
+
+test:
+
+
+msysmon:	$(OBJS)
+	echo "Linking $@..."
+	$(CC) $(LDFLAGS) -o msysmon $(OBJS) $(LIBS)
+
+
+# Dependencies...
+$(OBJS):	Makefile msysmon.h
