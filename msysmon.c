@@ -7,7 +7,7 @@
 // information.
 //
 
-#include "msysmon.h>
+#include "msysmon.h"
 
 
 //
@@ -184,7 +184,7 @@ main(int  argc,				// I - Number of command-line arguments
   }
   else
   {
-    if ((msysmonData.listeners[msysmonData.num_listeners].fd = httpAddrListen(&(addrlist->addr), db.port) >= 0)
+    if ((msysmonData.listeners[msysmonData.num_listeners].fd = httpAddrListen(&(addrlist->addr), msysmonData.port)) >= 0)
     {
       msysmonData.listeners[msysmonData.num_listeners].events = POLLIN | POLLERR | POLLHUP;
       msysmonData.num_listeners ++;
@@ -200,7 +200,7 @@ main(int  argc,				// I - Number of command-line arguments
   }
   else
   {
-    if ((msysmonData.listeners[msysmonData.num_listeners].fd = httpAddrListen(&(addrlist->addr), db.port) >= 0)
+    if ((msysmonData.listeners[msysmonData.num_listeners].fd = httpAddrListen(&(addrlist->addr), msysmonData.port)) >= 0)
     {
       msysmonData.listeners[msysmonData.num_listeners].events = POLLIN | POLLERR | POLLHUP;
       msysmonData.num_listeners ++;

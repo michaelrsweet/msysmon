@@ -86,7 +86,7 @@ extern msysmon_db_t	msysmonData;
 // Functions...
 //
 
-extern bool	msysmonCollectData(msysmon_db_t *db);
+extern bool	msysmonCollectData(void);
 extern uint32_t	msysmonGetSystemMemory(void);
 extern void	*msysmonRunWebIf(http_t *http);
 

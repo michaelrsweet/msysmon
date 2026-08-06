@@ -7,7 +7,7 @@
 // information.
 //
 
-#include "msysmon.h>
+#include "msysmon.h"
 
 
 //
@@ -17,4 +17,7 @@
 void *					// O - Exit status
 msysmonRunWebIf(http_t *http)		// I - Client connection
 {
+  httpClose(http);
+
+  return (NULL);
 }
