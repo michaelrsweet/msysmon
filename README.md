@@ -1,9 +1,9 @@
-Linux System Monitor
-====================
+Mike's Linux System Monitor (msysmon)
+=====================================
 
-Linux System Monitor (lsm) is an administrator/developer tool for monitoring
-the CPU, memory, network, and storage usage on Linux systems via the `/proc`
-filesystem.
+Mike's Linux System Monitor (msysmon) is an administrator/developer tool for
+monitoring the CPU, memory, network, and storage usage on Linux systems via the
+`/proc` filesystem.
 
 
 Goals
@@ -37,7 +37,7 @@ Running
 Legal Stuff
 -----------
 
-Linux System Monitor is Copyright © 2026 by Michael R Sweet.
+Mike's Linux System Monitor is Copyright © 2026 by Michael R Sweet.
 
 This software is licensed under the Apache License Version 2.0.  See the files
 "LICENSE" and "NOTICE" for more information.
