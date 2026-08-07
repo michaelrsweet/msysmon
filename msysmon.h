@@ -26,8 +26,8 @@
 // Constants...
 //
 
-#  define DATA_INTERVAL		60	// Interval between data samples
-#  define DATA_WEEKS		4	// How many weeks worth of data
+#  define DATA_INTERVAL		300	// Interval between data samples
+#  define DATA_WEEKS		1	// How many weeks worth of data
 #  define DEFAULT_CPU_LIMIT	10	// Default CPU limit for monitoring
 #  define DEFAULT_MEM_LIMIT	5	// Default memory limit (percent) for monitoring
 #  define DEFAULT_PORT		10080	// Default port number
@@ -37,7 +37,7 @@
 #    define MAX_COMMAND 128
 #  endif // MAXCOMLEN
 #  define MAX_COMMANDS		10	// Maximum number of commands to follow
-#  define MAX_PROCESSES		10000	// Maximum number of processes to follow
+#  define MAX_PROCESSES		100	// Maximum number of processes to follow
 
 
 //
@@ -56,6 +56,7 @@ typedef struct msysmon_proc_s		// Record of per-process data
   pid_t		pid;			// Process ID
   char		command[MAX_COMMAND];	// Command name
   time_t	start_time;		// Start time for this process
+  time_t	end_time;		// End time for this process
   unsigned	num_data;		// Number of system data samples
   msysmon_data_t data[DATA_WEEKS * 7 * 24 * 60 * 60 / DATA_INTERVAL];
 					// Process data samples
