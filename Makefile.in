@@ -23,6 +23,7 @@ VERSION	=	@VERSION@
 CC		=	@CC@
 CFLAGS		=	-I.. @CFLAGS@ $(CPPFLAGS) $(OPTIM) $(WARNINGS)
 CPPFLAGS	=	@CPPFLAGS@ '-DVERSION="$(VERSION)"'
+CSFLAGS		=	-s "$${CODESIGN_IDENTITY:=-}" --timestamp @CSFLAGS@
 INSTALL		=	@INSTALL@
 LDFLAGS		=	@LDFLAGS@ $(OPTIM)
 LIBS		=	@LIBS@
@@ -97,6 +98,10 @@ test:
 msysmon:	$(OBJS)
 	echo "Linking $@..."
 	$(CC) $(LDFLAGS) -o msysmon $(OBJS) $(LIBS)
+	if test `uname` = Darwin; then \
+	    echo "Code-signing $@..."; \
+	    codesign $(CSFLAGS) --prefix org.msweet. $@; \
+	fi
 
 
 # Dependencies...

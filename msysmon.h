@@ -17,6 +17,9 @@
 #  include <poll.h>
 #  include <cups/cups.h>
 #  include <cups/thread.h>
+#  ifdef __APPLE__
+#    include <sys/param.h>
+#  endif // __APPLE__
 
 
 //
@@ -28,6 +31,11 @@
 #  define DEFAULT_CPU_LIMIT	10	// Default CPU limit for monitoring
 #  define DEFAULT_MEM_LIMIT	5	// Default memory limit (percent) for monitoring
 #  define DEFAULT_PORT		10080	// Default port number
+#  ifdef MAXCOMLEN
+#    define MAX_COMMAND MAXCOMLEN	// Maximum length of command name
+#  else
+#    define MAX_COMMAND 128
+#  endif // MAXCOMLEN
 #  define MAX_COMMANDS		10	// Maximum number of commands to follow
 #  define MAX_PROCESSES		10000	// Maximum number of processes to follow
 
@@ -46,7 +54,7 @@ typedef struct msysmon_data_s		// Common monitoring data
 typedef struct msysmon_proc_s		// Record of per-process data
 {
   pid_t		pid;			// Process ID
-  char		command[256];		// Command name
+  char		command[MAX_COMMAND];	// Command name
   time_t	start_time;		// Start time for this process
   unsigned	num_data;		// Number of system data samples
   msysmon_data_t data[DATA_WEEKS * 7 * 24 * 60 * 60 / DATA_INTERVAL];
@@ -59,7 +67,7 @@ typedef struct msysmon_db_s		// Record of all data
   uint32_t	mem_limit;		// Memory limit (kibibytes)
   int		port;			// Listen port
   unsigned	num_commands;		// Number of commands
-  char		commands[MAX_COMMANDS][256];
+  char		commands[MAX_COMMANDS][MAX_COMMAND];
 					// Command names
 
   cups_rwlock_t	rwlock;			// Reader/writer lock

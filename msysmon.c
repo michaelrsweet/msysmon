@@ -174,6 +174,10 @@ main(int  argc,				// I - Number of command-line arguments
     }
   }
 
+  printf("sizeof(msysmon_db_t) = %lu\n", (unsigned long)sizeof(msysmonData));
+  printf("cpu_limit = %u\n", msysmonData.cpu_limit);
+  printf("mem_limit = %u\n", msysmonData.mem_limit);
+
   // Create listeners...
   snprintf(service, sizeof(service), "%d", msysmonData.port);
 
