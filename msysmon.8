@@ -6,7 +6,7 @@
 .\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
 .\" information.
 .\"
-.TH msysmon 1 "msysmon" "2026-08-06" "Michael R Sweet"
+.TH msysmon 1 "msysmon" "2026-08-07" "Michael R Sweet"
 .SH NAME
 msysmon \- mike's system monitor
 .SH SYNOPSIS
@@ -18,6 +18,9 @@ msysmon \- mike's system monitor
 ] [
 .B \-C
 .I CPU-LIMIT
+] [
+.B \-I
+.I INTERVAL
 ] [
 .B \-M
 .I MEMORY-LIMIT
@@ -47,6 +50,11 @@ Shows program version.
 \fB\-C \fICPU-LIMIT\fR
 Specifies the minimum CPU usage (as a percentage) that will trigger monitoring of a process.
 The default is 10%.
+.TP 5
+\fB\-I \fIINTERVAL\fR
+Specifies the sampling interval.
+The default is 300 seconds (5 minutes).
+The interval can use the unit suffix "s" for seconds (the default unit), "m" for minutes, "h" for hours, or "d" for days.
 .TP 5
 \fB\-M \fIMEMORY-LIMIT\fR
 Specifies the minimum virtual memory usage that will trigger monitoring of a process.

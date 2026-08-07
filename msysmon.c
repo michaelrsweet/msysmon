@@ -46,6 +46,7 @@ main(int  argc,				// I - Number of command-line arguments
 
   cupsRWInit(&msysmonData.rwlock);
 
+  msysmonData.interval  = DEFAULT_INTERVAL;
   msysmonData.port      = DEFAULT_PORT;
   msysmonData.cpu_limit = DEFAULT_CPU_LIMIT;
   msysmonData.mem_limit = DEFAULT_MEM_LIMIT * msysmonGetSystemMemory() / 100;
@@ -77,7 +78,7 @@ main(int  argc,				// I - Number of command-line arguments
               i ++;
               if (i >= argc)
               {
-                fputs("msysmon: Missing port number after '-p'.\n", stderr);
+                fputs("msysmon: Missing CPU limit after '-C'.\n", stderr);
                 return (usage(stderr));
               }
 
@@ -90,11 +91,53 @@ main(int  argc,				// I - Number of command-line arguments
 	      msysmonData.cpu_limit = (int)val;
               break;
 
+          case 'I' : // -I INTERVAL
+              i ++;
+              if (i >= argc)
+              {
+                fputs("msysmon: Missing sampling interval after '-I'.\n", stderr);
+                return (usage(stderr));
+              }
+
+	      if ((val = strtod(argv[i], &end)) < 0)
+	      {
+	        fprintf(stderr, "msysmon: Bad sampling interval '%s'.\n", argv[i]);
+	        return (usage(stderr));
+	      }
+	      else if (*end == 'm')
+	      {
+	        msysmonData.interval = (int)(val * 60.0);
+	      }
+	      else if (*end == 'h')
+	      {
+	        msysmonData.interval = (int)(val * 60.0 * 60.0);
+	      }
+	      else if (*end == 'd')
+	      {
+	        msysmonData.interval = (int)(val * 24.0 * 60.0 * 60.0);
+	      }
+	      else if (*end && *end != 's')
+	      {
+	        fprintf(stderr, "msysmon: Bad sampling interval '%s'.\n", argv[i]);
+	        return (usage(stderr));
+	      }
+	      else
+	      {
+	        msysmonData.interval = (int)val;
+	      }
+
+	      if (msysmonData.interval == 0)
+	      {
+	        fputs("msysmon: Sampling interval cannot be less than one second.\n", stderr);
+	        return (usage(stderr));
+	      }
+              break;
+
           case 'M' : // -M MEM-LIMIT
               i ++;
               if (i >= argc)
               {
-                fputs("msysmon: Missing port number after '-p'.\n", stderr);
+                fputs("msysmon: Missing memory limit after '-M'.\n", stderr);
                 return (usage(stderr));
               }
 
@@ -174,9 +217,10 @@ main(int  argc,				// I - Number of command-line arguments
     }
   }
 
-  printf("sizeof(msysmon_db_t) = %lu\n", (unsigned long)sizeof(msysmonData));
-  printf("cpu_limit = %u\n", msysmonData.cpu_limit);
-  printf("mem_limit = %u\n", msysmonData.mem_limit);
+  MSYSMON_DEBUG("sizeof(msysmon_db_t) = %lu\n", (unsigned long)sizeof(msysmonData));
+  MSYSMON_DEBUG("interval = %d\n", msysmonData.interval);
+  MSYSMON_DEBUG("cpu_limit = %u\n", msysmonData.cpu_limit);
+  MSYSMON_DEBUG("mem_limit = %u\n", msysmonData.mem_limit);
 
   // Create listeners...
   snprintf(service, sizeof(service), "%d", msysmonData.port);
@@ -220,8 +264,11 @@ main(int  argc,				// I - Number of command-line arguments
   }
 
   // Run...
-  msysmonData.start_time = time(NULL);
-  collect_time           = msysmonData.start_time + DATA_INTERVAL;
+  msysmonData.data_start = time(NULL);
+  collect_time           = msysmonData.data_start + msysmonData.interval;
+
+  if (!msysmonCollectData())
+    return (1);
 
   for (;;)
   {
@@ -230,7 +277,7 @@ main(int  argc,				// I - Number of command-line arguments
       if (!msysmonCollectData())
         break;
 
-      collect_time += DATA_INTERVAL;
+      collect_time += msysmonData.interval;
     }
 
     if (poll(msysmonData.listeners, msysmonData.num_listeners, 1000) > 0)
@@ -269,6 +316,7 @@ usage(FILE *out)			// I - Output file
   fputs("  --help             Show help.\n", out);
   fputs("  --version          Show version.\n", out);
   fputs("  -C CPU-LIMIT       Set CPU percentage for auto-monitoring.\n", out);
+  fputs("  -I INTERVAL        Set sampling interval.\n", out);
   fputs("  -M MEM-LIMIT       Set memory usage for auto-monitoring.\n", out);
   fputs("  -p PORT-NUMBER     Set web interface port.\n", out);
   fputs("  -w COMMAND         Add command to monitor.\n", out);

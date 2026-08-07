@@ -1,5 +1,5 @@
 //
-// for Mike's System Monitor.
+// Web interface code for Mike's System Monitor.
 //
 // Copyright © 2026 by Michael R Sweet
 //
