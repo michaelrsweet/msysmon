@@ -110,10 +110,7 @@ add_process(pid_t      pid,		// I - Process ID
     }
 
     if (i == 0)
-    {
-      fprintf(stderr, "msysmon: Too many interesting processes, discarding data for process %d (%s)\n", (int)pid, command);
       return (NULL);
-    }
 
     // Remove the process and add the new one at the end...
     if (i > 1)
@@ -191,6 +188,8 @@ get_process_info(void)
   bool		ret = true;		// Return value
   msysmon_proc_t *proc;			// Current process
   time_t	curtime = time(NULL);	// Current time
+  static bool	reported_too_many = false;
+					// Have we reported there are too many processes?
 
 
   cupsRWLockWrite(&msysmonData.rwlock);
@@ -232,7 +231,7 @@ get_process_info(void)
 
       if (proc_name(pids[i], command, sizeof(command)) <= 0)
       {
-        fprintf(stderr, "msysmon: Unable to get command name for pid %d.\n", (int)pids[i]);
+        MSYSMON_DEBUG("PID-%d: Unable to get command name (%s)\n", (int)pids[i], strerror(errno));
         continue;
       }
 
@@ -240,25 +239,32 @@ get_process_info(void)
 
       if (proc_pidinfo(pids[i], PROC_PIDTASKINFO, /*arg*/0, &pinfo, PROC_PIDTASKINFO_SIZE) <= 0)
       {
-        fprintf(stderr, "msysmon: Unable to get task information for pid %d.\n", (int)pids[i]);
-        continue;
+        MSYSMON_DEBUG("PID-%d: Unable to get task information (%s)\n", (int)pids[i], strerror(errno));
+        mem_k    = 0;
+        tp_count = 1;
       }
+      else
+      {
+	MSYSMON_DEBUG("PID-%d: pinfo.pti_virtual_size = %lu\n", (int)pids[i], (unsigned long)pinfo.pti_virtual_size);
+	MSYSMON_DEBUG("PID-%d: pinfo.pti_resident_size = %lu\n", (int)pids[i], (unsigned long)pinfo.pti_resident_size);
+	MSYSMON_DEBUG("PID-%d: pinfo.pti_threadnum = %d\n", (int)pids[i], (int)pinfo.pti_threadnum);
 
-      MSYSMON_DEBUG("PID-%d: pinfo.pti_virtual_size = %lu\n", (int)pids[i], pinfo.pti_virtual_size);
-      MSYSMON_DEBUG("PID-%d: pinfo.pti_threadnum = %d\n", (int)pids[i], pinfo.pti_threadnum);
-
-      mem_k    = (uint32_t)(pinfo.pti_virtual_size / 1024);
-      tp_count = (uint16_t)pinfo.pti_threadnum;
+	mem_k    = (uint32_t)(pinfo.pti_resident_size / 1024);
+	tp_count = (uint16_t)pinfo.pti_threadnum;
+      }
 
       if (proc_pidinfo(pids[i], PROC_PIDTHREADINFO, /*arg*/0, &tinfo, PROC_PIDTHREADINFO_SIZE) <= 0)
       {
-        fprintf(stderr, "msysmon: Unable to get thread information for pid %d.\n", (int)pids[i]);
-        continue;
+        MSYSMON_DEBUG("PID-%d: Unable to get thread information (%s)\n", (int)pids[i], strerror(errno));
+
+        cpu_percent = 0;
       }
+      else
+      {
+	MSYSMON_DEBUG("PID-%d: tinfo.pth_cpu_usage = %d\n", (int)pids[i], tinfo.pth_cpu_usage);
 
-      MSYSMON_DEBUG("PID-%d: tinfo.pth_cpu_usage = %d\n", (int)pids[i], tinfo.pth_cpu_usage);
-
-      cpu_percent = tinfo.pth_cpu_usage / ncpu;
+	cpu_percent = tinfo.pth_cpu_usage / ncpu;
+      }
 
       // See if we need to follow this process...
       if (!proc)
@@ -270,7 +276,13 @@ get_process_info(void)
         }
 
         if (j < msysmonData.num_commands || cpu_percent >= msysmonData.cpu_limit || mem_k >= msysmonData.mem_limit)
-          proc = add_process(pids[i], command);
+        {
+          if ((proc = add_process(pids[i], command)) == NULL && !reported_too_many)
+          {
+            fputs("msysmon: Too many interesting processes.\n", stderr);
+            reported_too_many = true;
+          }
+        }
       }
 
       if (proc)

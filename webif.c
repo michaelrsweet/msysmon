@@ -269,6 +269,28 @@ html_header(http_t     *http,		// I - Client connection
 		   "  font-family: sans-serif;\n"
 		   "  margin: 36pt 18pt;\n"
 		   "}\n"
+		   "table {\n"
+		   "  border-bottom: black 1px solid;\n"
+		   "  border-collapse: collapse;\n"
+		   "  width: 100%;"
+		   "}\n"
+		   "thead tr th {\n"
+		   "  border-bottom: 2px black solid;\n"
+		   "}\n"
+		   "tbody tr:nth-child(odd) {\n"
+		   "  background: #dddddd;\n"
+		   "}\n"
+		   "tbody tr:nth-child(even) {\n"
+		   "  background: #eeeeee;\n"
+		   "}\n"
+		   "tbody tr td {\n"
+		   "  border-right: gray 1px solid;\n"
+		   "  padding: 2px 5px;\n"
+		   "  text-align: center;\n"
+		   "}\n"
+		   "tbody tr td:last-child {\n"
+		   "  border-right: none;\n"
+		   "}\n"
 		   "    </style>\n");
 
   ret &= html_puts(http, "  </head>\n  <body>\n");
@@ -545,7 +567,12 @@ send_history_svg(http_t *http,		// I - Client connection
 {
   bool		ret = true;		// Return value
   unsigned	i;			// Looping var
-  msysmon_data_t *data;			// Current data
+  long		pid;			// Process ID
+  msysmon_proc_t *proc;			// Process
+  time_t	data_start;		// Start time of data
+  unsigned	num_data;		// Number of data elements
+  msysmon_data_t *data = NULL,		// Data to display
+		*dataptr;		// Current data
   uint32_t	max_mem = msysmonGetSystemMemory();
 					// Maximum amount of memory
   double	mem_div;		// Memory divisor
@@ -571,6 +598,32 @@ send_history_svg(http_t *http,		// I - Client connection
     mem_units = "MB";
   }
 
+  cupsRWLockRead(&msysmonData.rwlock);
+
+  // See if we have a PID in the options?
+  if (options && !strncmp(options, "pid=", 4))
+  {
+    // Yes, show the process info
+    pid = strtol(options + 4, NULL, 10);
+    for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
+    {
+      if (proc->pid == (pid_t)pid)
+      {
+        data_start = proc->data_start;
+        data       = proc->data;
+        num_data   = proc->num_data;
+        break;
+      }
+    }
+  }
+
+  if (!data)
+  {
+    data_start = msysmonData.data_start;
+    data       = msysmonData.data;
+    num_data   = msysmonData.num_data;
+  }
+
   // Response and SVG header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
 
@@ -579,14 +632,12 @@ send_history_svg(http_t *http,		// I - Client connection
   // Grid lines
   html_puts(http, "<path d=\"M100 10h1000M100 110h1000M100 210h1000M100 310h1000M100 410h1000\" fill=\"none\" stroke=\"gray\" />\n");
 
-  cupsRWLockRead(&msysmonData.rwlock);
-
-  if (msysmonData.num_data > 1)
+  if (num_data > 1)
   {
     // Determine the proper time scale...
-    if (msysmonData.num_data > (MAX_DATA / 2))
+    if (num_data > (MAX_DATA / 2))
       disp_data = MAX_DATA;
-    else if (msysmonData.num_data > (MAX_DATA / 4))
+    else if (num_data > (MAX_DATA / 4))
       disp_data = MAX_DATA / 2;
     else
       disp_data = MAX_DATA / 4;
@@ -596,16 +647,24 @@ send_history_svg(http_t *http,		// I - Client connection
     // Draw blue graph of memory
     ret &= html_puts(http, "<path d=\"M100 510");
 
-    for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
-      ret &= html_printf(http, "L%.1f %.0f", 100.0 + i * disp_scale, 510.0 - 400.0 * data->mem_k / max_mem);
+    for (i = 0, dataptr = data; i < num_data; i ++, dataptr ++)
+    {
+      int y = (int)(510.0 - 400.0 * dataptr->mem_k / max_mem);
+
+      ret &= html_printf(http, "L%.1f %d", 100.0 + i * disp_scale, y < 0 ? 0 : y);
+    }
 
     ret &= html_puts(http, "V510z\" fill=\"#6699ff\" stroke=\"blue\" />\n");
 
     // Draw red graph of CPU
     ret &= html_puts(http, "<path d=\"");
 
-    for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
-      ret &= html_printf(http, "%s%.1f %d", i == 0 ? "M" : "L", 100.0 + i * disp_scale, 500 - 4 * data->cpu_percent);
+    for (i = 0, dataptr = data; i < num_data; i ++, dataptr ++)
+    {
+      int y = 500 - 4 * dataptr->cpu_percent;
+
+      ret &= html_printf(http, "%s%.1f %d", i == 0 ? "M" : "L", 100.0 + i * disp_scale, y < 0 ? 0 : y);
+    }
 
     ret &= html_puts(http, "\" fill=\"none\" stroke=\"red\" stroke-width=\"2\" />\n");
   }
@@ -627,7 +686,7 @@ send_history_svg(http_t *http,		// I - Client connection
     disp_off = 40;
 
   for (i = 0; i <= 10; i ++)
-    ret &= html_printf(http, "<text x=\"%d\" y=\"545\" font-family=\"sans-serif\" font-size=\"15\" fill=\"black\">%s</text>\n", disp_off + i * 100, get_datetime(msysmonData.data_start + i * disp_secs / 10, disp_secs, datetime, sizeof(datetime)));
+    ret &= html_printf(http, "<text x=\"%d\" y=\"545\" font-family=\"sans-serif\" font-size=\"15\" fill=\"black\">%s</text>\n", disp_off + i * 100, get_datetime(data_start + i * disp_secs / 10, disp_secs, datetime, sizeof(datetime)));
 
   ret &= html_puts(http, "<text x=\"25\" y=\"15\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">125%</text>\n");
   ret &= html_puts(http, "<text x=\"25\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"red\">CPU</text>\n");
@@ -680,6 +739,35 @@ send_html_report(http_t *http,		// I - Client connection
     ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fMB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1024.0, data->tp_count);
 
   ret &= html_puts(http, "<p><img src=\"/history.svg\" width=\"100%\"></p>\n");
+
+  ret &= html_puts(http, "<h2>Interesting Processes</h2>\n");
+
+  if (msysmonData.num_processes == 0)
+  {
+    ret &= html_puts(http, "<p>None.<p>\n");
+  }
+  else
+  {
+    unsigned		i;		// Looping var
+    msysmon_proc_t	*proc;		// Current process
+    char		history[256];	// History link
+
+    ret &= html_printf(http, "<p>%u interesting processes:<br>\n<table summary=\"Interesting Processes\">\n  <thead>\n    <tr><th>PID</th><th>Command</th><th>CPU</th><th>Memory</th><th>Threads</th></tr>\n  </thead>\n  <tbody>\n", msysmonData.num_processes);
+
+    for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
+    {
+      snprintf(history, sizeof(history), "/history.svg?pid=%d", (int)proc->pid);
+
+      data = proc->data + proc->num_data - 1;
+
+      if (data->mem_k > 1048576)
+	ret &= html_printf(http, "    <tr><td>%d</td><td>%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fGB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, history, data->cpu_percent, history, data->mem_k / 1048576.0, data->tp_count);
+      else
+	ret &= html_printf(http, "    <tr><td>%d</td><td>%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fMB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, history, data->cpu_percent, history, data->mem_k / 1024.0, data->tp_count);
+    }
+
+    ret &= html_puts(http, "  </tbody>\n</table></p>\n");
+  }
 
   cupsRWUnlock(&msysmonData.rwlock);
 

@@ -156,11 +156,13 @@ main(int  argc,				// I - Number of command-line arguments
 	      }
 	      else if (*end == 'm')
 	      {
-	        msysmonData.mem_limit = (uint32_t)(val / 1024.0);
+	        // Convert mebibytes to kibibytes
+	        msysmonData.mem_limit = (uint32_t)(val * 1024.0);
 	      }
 	      else if (*end == 'g')
 	      {
-	        msysmonData.mem_limit = (uint32_t)(val / 1024.0 / 1024.0);
+	        // Convert gibibytes to kibibytes
+	        msysmonData.mem_limit = (uint32_t)(val * 1024.0 * 1024.0);
 	      }
 	      else if (*end)
 	      {
@@ -169,6 +171,7 @@ main(int  argc,				// I - Number of command-line arguments
 	      }
 	      else
 	      {
+	        // Convert bytes to kibibytes
 	        msysmonData.mem_limit = (uint32_t)(val / 1024.0);
 	      }
               break;

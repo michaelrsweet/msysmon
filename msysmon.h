@@ -42,11 +42,7 @@
 #  define DEFAULT_INTERVAL	300	// Default interval between data samples
 #  define DEFAULT_MEM_LIMIT	5	// Default memory limit (percent) for monitoring
 #  define DEFAULT_PORT		8080	// Default port number
-#  ifdef MAXCOMLEN
-#    define MAX_COMMAND MAXCOMLEN	// Maximum length of command name
-#  else
-#    define MAX_COMMAND 128
-#  endif // MAXCOMLEN
+#  define MAX_COMMAND 		128	// Maximum length of command name
 #  define MAX_COMMANDS		10	// Maximum number of commands to follow
 #  define MAX_DATA		2000	// Maximum number of data samples, enough for about 1 week with 5 minute samples
 #  define MAX_PROCS		100	// Maximum number of processes to follow
