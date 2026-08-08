@@ -10,6 +10,7 @@
 #include "msysmon.h"
 #include <stdarg.h>
 #include <ctype.h>
+#include "msysmon_png.h"
 
 
 //
@@ -27,7 +28,7 @@ static bool	html_puts(http_t *http, const char *s);
 static bool	send_favicon_png(http_t *http);
 static bool	send_history_svg(http_t *http, char *options);
 static bool	send_html_report(http_t *http, char *options);
-static bool	send_http_response(http_t *http, http_status_t status, const char *content_type, const char *message, ...);
+static bool	send_http_response(http_t *http, http_status_t status, const char *content_type, size_t content_length, const char *message, ...);
 
 
 //
@@ -54,17 +55,17 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
     }
     else if (state == HTTP_STATE_UNKNOWN_METHOD)
     {
-      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", "Bad/unknown operation.\n");
+      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", /*content_length*/0, "Bad/unknown operation.\n");
       break;
     }
     else if (state == HTTP_STATE_UNKNOWN_VERSION)
     {
-      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", "Bad HTTP version.\n");
+      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", /*content_length*/0, "Bad HTTP version.\n");
       break;
     }
     else if (resource[0] != '/' && strcmp(resource, "*"))
     {
-      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", "Bad resource path '%s'.\n", resource);
+      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", /*content_length*/0, "Bad resource path '%s'.\n", resource);
       break;
     }
 
@@ -77,42 +78,42 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
 
     if (status != HTTP_STATUS_OK)
     {
-      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", "Bad/missing request headers.\n");
+      send_http_response(http, HTTP_STATUS_BAD_REQUEST, "text/plain", /*content_length*/0, "Bad/missing request headers.\n");
       break;
     }
 
     switch (state)
     {
       case HTTP_STATE_OPTIONS :
-          send_http_response(http, HTTP_STATUS_OK, /*content_type*/NULL, /*message*/NULL);
+          send_http_response(http, HTTP_STATUS_OK, /*content_type*/NULL, /*content_length*/0, /*message*/NULL);
           httpWrite(http, "", 0);
           break;
 
       case HTTP_STATE_HEAD :
           if (!strcmp(resource, "/"))
-            send_http_response(http, HTTP_STATUS_OK, "text/html", /*message*/NULL);
-          else if (!strcmp(resource, "/favicon.png"))
-            send_http_response(http, HTTP_STATUS_OK, "image/png", /*message*/NULL);
+            send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
+          else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
+            send_http_response(http, HTTP_STATUS_OK, "image/png", sizeof(msysmon_png), /*message*/NULL);
           else if (!strcmp(resource, "/history.svg"))
-            send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*message*/NULL);
+            send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
           else
-            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*message*/NULL);
+            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, /*message*/NULL);
           httpWrite(http, "", 0);
           break;
 
       case HTTP_STATE_GET :
           if (!strcmp(resource, "/"))
             send_html_report(http, options);
-          else if (!strcmp(resource, "/favicon.png"))
+          else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
             send_favicon_png(http);
           else if (!strcmp(resource, "/history.svg"))
             send_history_svg(http, options);
           else
-            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", "The resource '%s' is not available from this server.\n", resource);
+            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, "The resource '%s' is not available from this server.\n", resource);
           break;
 
       default :
-          send_http_response(http, HTTP_STATUS_NOT_IMPLEMENTED, "text/plain", "The '%s' method is not supported by this server.\n", httpStateString(state));
+          send_http_response(http, HTTP_STATUS_NOT_IMPLEMENTED, "text/plain", /*content_length*/0, "The '%s' method is not supported by this server.\n", httpStateString(state));
           goto close_client;
     }
   }
@@ -526,7 +527,10 @@ send_favicon_png(http_t *http)		// I - Client connection
   bool		ret = true;		// Return value
 
 
-  // TODO: Add static favicon.png file.
+  ret &= send_http_response(http, HTTP_STATUS_OK, "image/png", sizeof(msysmon_png), /*message*/NULL);
+
+  ret &= httpWrite(http, (const char *)msysmon_png, sizeof(msysmon_png)) > 0;
+
   return (ret);
 }
 
@@ -568,7 +572,7 @@ send_history_svg(http_t *http,		// I - Client connection
   }
 
   // Response and SVG header...
-  ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*message*/NULL);
+  ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
 
   ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"550\" viewBox=\"0 0 1200 550\">\n");
 
@@ -661,9 +665,9 @@ send_html_report(http_t *http,		// I - Client connection
 
 
   // Response and HTML header...
-  ret &= send_http_response(http, HTTP_STATUS_OK, "text/html", /*message*/NULL);
+  ret &= send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
 
-  ret &= html_header(http, /*title*/NULL, /*refresh*/msysmonData.interval);
+  ret &= html_header(http, /*title*/NULL, /*refresh*/msysmonData.interval < 10 ? 10 : msysmonData.interval);
 
   cupsRWLockRead(&msysmonData.rwlock);
 
@@ -695,6 +699,7 @@ send_http_response(
     http_t        *http,		// I - Client connection
     http_status_t status,		// I - HTTP response status
     const char    *content_type,	// I - Content-Type value
+    size_t        content_length,	// I - Content-Length value or `0` for chunked
     const char    *message,		// I - Printf message or `NULL` for none
     ...)				// I - Additional arguments as needed
 {
@@ -728,7 +733,7 @@ send_http_response(
   else
   {
     // No message...
-    httpSetLength(http, 0);
+    httpSetLength(http, content_length);
 
     ret = httpWriteResponse(http, status);
   }
