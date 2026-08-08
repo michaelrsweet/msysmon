@@ -66,6 +66,7 @@ typedef struct msysmon_data_s		// Common monitoring data
 typedef struct msysmon_proc_s		// Record of per-process data
 {
   pid_t		pid;			// Process ID
+  bool		seen;			// Has the process been seen?
   char		command[MAX_COMMAND];	// Command name
   time_t	start_time;		// Start time for this process
   time_t	end_time;		// End time for this process
