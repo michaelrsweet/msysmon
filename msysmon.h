@@ -41,7 +41,7 @@
 #  define DEFAULT_CPU_LIMIT	10	// Default CPU limit for monitoring
 #  define DEFAULT_INTERVAL	300	// Default interval between data samples
 #  define DEFAULT_MEM_LIMIT	5	// Default memory limit (percent) for monitoring
-#  define DEFAULT_PORT		10080	// Default port number
+#  define DEFAULT_PORT		8080	// Default port number
 #  ifdef MAXCOMLEN
 #    define MAX_COMMAND MAXCOMLEN	// Maximum length of command name
 #  else

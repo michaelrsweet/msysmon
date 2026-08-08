@@ -265,6 +265,7 @@ main(int  argc,				// I - Number of command-line arguments
 
   // Run...
   msysmonData.data_start = time(NULL);
+  msysmonData.data_start -= msysmonData.data_start % msysmonData.interval;
   collect_time           = msysmonData.data_start + msysmonData.interval;
 
   if (!msysmonCollectData())

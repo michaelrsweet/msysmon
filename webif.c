@@ -16,6 +16,8 @@
 // Local functions...
 //
 
+static char	*get_datetime(time_t t, int secs, char *buffer, size_t bufsize);
+
 static bool	html_escape(http_t *http, const char *s, size_t slen);
 static bool	html_footer(http_t *http);
 static bool	html_header(http_t *http, const char *title, int refresh);
@@ -92,7 +94,7 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
           else if (!strcmp(resource, "/favicon.png"))
             send_http_response(http, HTTP_STATUS_OK, "image/png", /*message*/NULL);
           else if (!strcmp(resource, "/history.svg"))
-            send_http_response(http, HTTP_STATUS_OK, "image/svg", /*message*/NULL);
+            send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*message*/NULL);
           else
             send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*message*/NULL);
           httpWrite(http, "", 0);
@@ -116,7 +118,7 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
   }
 
   // Cleanup and return...
-  if (state == HTTP_STATE_ERROR && httpGetError(http) != EPIPE && httpGetError(http))
+  if (state == HTTP_STATE_ERROR && httpGetError(http) != EPIPE && httpGetError(http) != ECONNRESET && httpGetError(http))
     fprintf(stderr, "msysmon: Bad request line (%s).\n", strerror(httpGetError(http)));
 
   close_client:
@@ -124,6 +126,44 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
   httpClose(http);
 
   return (NULL);
+}
+
+
+//
+// 'get_datetime()' - Get a date/time string of the form YYYY-MM-DD HH:MM:SS
+//
+
+static char *				// O - Date/time string
+get_datetime(time_t t,			// I - Time value
+             int    secs,		// I - Number of seconds being displayed
+             char   *buffer,		// I - String buffer
+             size_t bufsize)		// I - Size of string buffer
+{
+  struct tm	date;			// Date value
+  static const char * const days[] =	// Days
+  {
+    "Sun",
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat"
+  };
+
+
+  // Get the local date and time...
+  localtime_r(&t, &date);
+
+  // Format it and return...
+  if (secs <= 86400)
+    snprintf(buffer, bufsize, "%02d:%02d:%02d", date.tm_hour, date.tm_min, date.tm_sec);
+  else if (secs <= (7 * 86400))
+    snprintf(buffer, bufsize, "%s %02d:%02d:%02d", days[date.tm_wday], date.tm_hour, date.tm_min, date.tm_sec);
+  else
+    snprintf(buffer, bufsize, "%04d-%02d-%02d %02d:%02d:%02d", date.tm_year + 1900, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min, date.tm_sec);
+
+  return (buffer);
 }
 
 
@@ -222,11 +262,13 @@ html_header(http_t     *http,		// I - Client connection
   if (refresh > 0)
     ret &= html_printf(http, "    <meta http-equiv=\"refresh\" content=\"%d\">\n", refresh);
 
-#if 0 // No stylesheet yet
   ret &= html_puts(http,
 		   "    <style>\n"
+		   "body {\n"
+		   "  font-family: sans-serif;\n"
+		   "  margin: 36pt 18pt;\n"
+		   "}\n"
 		   "    </style>\n");
-#endif // 0
 
   ret &= html_puts(http, "  </head>\n  <body>\n");
 
@@ -502,35 +544,101 @@ send_history_svg(http_t *http,		// I - Client connection
   msysmon_data_t *data;			// Current data
   uint32_t	max_mem = msysmonGetSystemMemory();
 					// Maximum amount of memory
+  double	mem_div;		// Memory divisor
+  const char	*mem_units;		// Memory units
+  unsigned	disp_data = MAX_DATA / 4;
+					// Displayed data samples
+  double	disp_scale = 1000.0 / (MAX_DATA / 4);
+					// Horizontal scale for samples
+  int		disp_secs;		// Number of seconds being displayed
+  int		disp_off;		// Display offset
+  char		datetime[256];		// Date/time string
 
+
+  // Memory units/scaling...
+  if (max_mem > 1048576)
+  {
+    mem_div   = 1048576.0;
+    mem_units = "GB";
+  }
+  else
+  {
+    mem_div   = 1024.0;
+    mem_units = "MB";
+  }
 
   // Response and SVG header...
-  ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg", /*message*/NULL);
+  ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*message*/NULL);
 
-  ret &= html_puts(http, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"600\" viewBox=\"0 0 1200 600\">\n");
+  ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"550\" viewBox=\"0 0 1200 550\">\n");
 
-  // Draw axis lines
-  html_puts(http, "<path d=\"M 100 0 L 100 500 L 1100 500 L 1100 0\" stroke=\"black\" stroke-width=\"2\" />\n");
+  // Grid lines
+  html_puts(http, "<path d=\"M100 10h1000M100 110h1000M100 210h1000M100 310h1000M100 410h1000\" fill=\"none\" stroke=\"gray\" />\n");
 
   cupsRWLockRead(&msysmonData.rwlock);
 
-  // Draw red graph of CPU
-  ret &= html_puts(http, "<path d=\"");
+  if (msysmonData.num_data > 1)
+  {
+    // Determine the proper time scale...
+    if (msysmonData.num_data > (MAX_DATA / 2))
+      disp_data = MAX_DATA;
+    else if (msysmonData.num_data > (MAX_DATA / 4))
+      disp_data = MAX_DATA / 2;
+    else
+      disp_data = MAX_DATA / 4;
 
-  for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
-    ret &= html_printf(http, "%s %.1f %d", i == 0 ? "M" : " L", 0.5 * i, 500 - 5 * data->cpu_percent);
+    disp_scale = 1000.0 / disp_data;
 
-  ret &= html_puts(http, "\" stroke=\"red\" />\n");
+    // Draw blue graph of memory
+    ret &= html_puts(http, "<path d=\"M100 510");
 
-  // Draw blue graph of memory
-  ret &= html_puts(http, "<path d=\"");
+    for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
+      ret &= html_printf(http, "L%.1f %.0f", 100.0 + i * disp_scale, 510.0 - 400.0 * data->mem_k / max_mem);
 
-  for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
-    ret &= html_printf(http, "%s %.1f %d", i == 0 ? "M" : " L", 0.5 * i, 500 - 500 * data->mem_k / max_mem);
+    ret &= html_puts(http, "V510z\" fill=\"#6699ff\" stroke=\"blue\" />\n");
 
-  ret &= html_puts(http, "\" stroke=\"blue\" />\n");
+    // Draw red graph of CPU
+    ret &= html_puts(http, "<path d=\"");
+
+    for (i = 0, data = msysmonData.data; i < msysmonData.num_data; i ++, data ++)
+      ret &= html_printf(http, "%s%.1f %d", i == 0 ? "M" : "L", 100.0 + i * disp_scale, 500 - 4 * data->cpu_percent);
+
+    ret &= html_puts(http, "\" fill=\"none\" stroke=\"red\" stroke-width=\"2\" />\n");
+  }
 
   cupsRWUnlock(&msysmonData.rwlock);
+
+  // Draw axis lines and labels
+  html_puts(http, "<path d=\"M100 10L100 510L1100 510L1100 10\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M80 10h20M80 110h20M80 210h20M80 310h20M80 410h20M80 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M1100 110h20M1100 210h20M1100 310h20M1100 410h20M1100 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M100 510v20M200 510v20M300 510v20M400 510v20M500 510v20M600 510v20M700 510v20M800 510v20M900 510v20M1000 510v20M1100 510v20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+
+  disp_secs = disp_data * msysmonData.interval;
+  if (disp_secs <= 86400)
+    disp_off = 70;
+  else if (disp_secs <= (7 * 86400))
+    disp_off = 50;
+  else
+    disp_off = 40;
+
+  for (i = 0; i <= 10; i ++)
+    ret &= html_printf(http, "<text x=\"%d\" y=\"545\" font-family=\"sans-serif\" font-size=\"15\" fill=\"black\">%s</text>\n", disp_off + i * 100, get_datetime(msysmonData.data_start + i * disp_secs / 10, disp_secs, datetime, sizeof(datetime)));
+
+  ret &= html_puts(http, "<text x=\"25\" y=\"15\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">125%</text>\n");
+  ret &= html_puts(http, "<text x=\"25\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"red\">CPU</text>\n");
+  ret &= html_puts(http, "<text x=\"25\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">100%</text>\n");
+  ret &= html_puts(http, "<text x=\"35\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">75%</text>\n");
+  ret &= html_puts(http, "<text x=\"35\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">50%</text>\n");
+  ret &= html_puts(http, "<text x=\"35\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">25%</text>\n");
+  ret &= html_puts(http, "<text x=\"45\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">0%</text>\n");
+
+  ret &= html_puts(http, "<text x=\"1120\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"#6699ff\">Memory</text>\n");
+  ret &= html_printf(http, "<text x=\"1125\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1125\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.75 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1125\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.5 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1125\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.25 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1125\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">0.0%s</text>\n", mem_units);
 
   // SVG footer
   ret &= html_puts(http, "</svg>\n");
@@ -555,15 +663,19 @@ send_html_report(http_t *http,		// I - Client connection
   // Response and HTML header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "text/html", /*message*/NULL);
 
-  ret &= html_header(http, /*title*/NULL, /*refresh*/0);
+  ret &= html_header(http, /*title*/NULL, /*refresh*/msysmonData.interval);
 
   cupsRWLockRead(&msysmonData.rwlock);
 
   data = msysmonData.data + msysmonData.num_data - 1;
 
   ret &= html_puts(http, "<h1>System Monitor History</h1>\n");
-  ret &= html_printf(http, "<p>Current CPU @ %u%%, memory @ %uk, %u processes.</p>\n", data->cpu_percent, data->mem_k, data->tp_count);
-  ret &= html_puts(http, "<img src=\"/history.svg\" width=\"100%\">\n");
+  if (data->mem_k > 1048576)
+    ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fGB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1048576.0, data->tp_count);
+  else
+    ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fMB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1024.0, data->tp_count);
+
+  ret &= html_puts(http, "<p><img src=\"/history.svg\" width=\"100%\"></p>\n");
 
   cupsRWUnlock(&msysmonData.rwlock);
 
