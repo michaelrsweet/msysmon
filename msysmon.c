@@ -327,11 +327,13 @@ main(int  argc,				// I - Number of command-line arguments
       {
         if (msysmonData.listeners[i].revents & POLLIN)
         {
+	  MSYSMON_DEBUG("Accepting connection from socket %u...\n", i);
 	  http_t *http = httpAcceptConnection(msysmonData.listeners[i].fd, /*blocking*/true);
 					// New connection
 
           if (http)
           {
+	    MSYSMON_DEBUG("Starting web interface thread for new connection...\n");
             cups_thread_t tid = cupsThreadCreate((cups_thread_func_t)msysmonRunWebIf, http);
             cupsThreadDetach(tid);
           }

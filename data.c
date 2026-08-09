@@ -17,6 +17,8 @@
 #  include <mach/mach_host.h>
 #  include <mach/vm_page_size.h>
 #  include <mach/vm_statistics.h>
+#else
+#  include <cups/dir.h>
 #endif // __APPLE__
 
 
@@ -87,7 +89,6 @@ msysmonGetSystemMemory(void)
   FILE		*fp;			// /proc/meminfo file
   char		line[1024],		// Line from file
 		*ptr;			// Pointer into line
-  long		mem;			// Memory in bytes
 
 
   if (mem_k == 0 && (fp = fopen("/proc/meminfo", "r")) != NULL)
@@ -99,8 +100,7 @@ msysmonGetSystemMemory(void)
         *ptr++ = '\0';
         if (!strcmp(line, "MemTotal"))
         {
-          mem = strtol(ptr, NULL, 10);
-          mem_k = (uint32_t)(mem / 1024UL);
+          mem_k = (uint32_t)strtol(ptr, NULL, 10);
           break;
         }
       }
@@ -216,12 +216,15 @@ get_num_cpus(void)
     {
       while (fgets(line, sizeof(line), fp))
       {
-        if (!strncmp(line, "processor ", 10))
+        if (!strncmp(line, "processor", 9))
           ncpu ++;
       }
 
       fclose(fp);
     }
+
+    if (ncpu == 0)
+      ncpu = 1;
   }
 #endif // __APPLE__
 
@@ -252,8 +255,6 @@ get_process_info(void)
   static bool	reported_too_many = false;
 					// Have we reported there are too many processes?
 
-
-  cupsRWLockWrite(&msysmonData.rwlock);
 
   // Flag all running processes as "not seen"
   for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
@@ -350,8 +351,6 @@ get_process_info(void)
       proc->end_time = time(NULL);
   }
 
-  cupsRWUnlock(&msysmonData.rwlock);
-
   return (ret);
 }
 
@@ -424,7 +423,11 @@ get_system_info(void)
   if ((fp = fopen("/proc/loadavg", "r")) != NULL)
   {
     if (fgets(line, sizeof(line), fp))
-      cpu = (uint16_t)(100.0 * strtod(line, NULL) / ncpu);
+    {
+      double loadavg = strtod(line, NULL);
+      MSYSMON_DEBUG("loadavg=%.3f, ncpu=%d\n", loadavg, ncpu);
+      cpu = (uint16_t)(100.0 * loadavg / ncpu);
+    }
 
     fclose(fp);
   }

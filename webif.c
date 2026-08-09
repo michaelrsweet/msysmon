@@ -597,6 +597,7 @@ send_history_svg(http_t *http,		// I - Client connection
     mem_units = "MB";
   }
 
+  MSYSMON_DEBUG("Read lock...\n");
   cupsRWLockRead(&msysmonData.rwlock);
 
   // See if we have a PID in the options?
@@ -668,6 +669,7 @@ send_history_svg(http_t *http,		// I - Client connection
     ret &= html_puts(http, "\" fill=\"none\" stroke=\"red\" stroke-width=\"2\" />\n");
   }
 
+  MSYSMON_DEBUG("Unlock...\n");
   cupsRWUnlock(&msysmonData.rwlock);
 
   // Draw axis lines and labels
@@ -727,6 +729,7 @@ send_html_report(http_t *http,		// I - Client connection
 
   ret &= html_header(http, /*title*/NULL, /*refresh*/msysmonData.interval < 10 ? 10 : msysmonData.interval);
 
+  MSYSMON_DEBUG("Read lock...\n");
   cupsRWLockRead(&msysmonData.rwlock);
 
   data = msysmonData.data + msysmonData.num_data - 1;
@@ -768,6 +771,7 @@ send_html_report(http_t *http,		// I - Client connection
     ret &= html_puts(http, "  </tbody>\n</table></p>\n");
   }
 
+  MSYSMON_DEBUG("Unlock...\n");
   cupsRWUnlock(&msysmonData.rwlock);
 
   // HTML footer
