@@ -761,9 +761,9 @@ send_html_report(http_t *http,		// I - Client connection
       data = proc->data + proc->num_data - 1;
 
       if (data->mem_k > 1048576)
-	ret &= html_printf(http, "    <tr><td>%d</td><td>%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fGB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, history, data->cpu_percent, history, data->mem_k / 1048576.0, data->tp_count);
+	ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fGB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", history, data->cpu_percent, history, data->mem_k / 1048576.0, data->tp_count);
       else
-	ret &= html_printf(http, "    <tr><td>%d</td><td>%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fMB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, history, data->cpu_percent, history, data->mem_k / 1024.0, data->tp_count);
+	ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fMB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", history, data->cpu_percent, history, data->mem_k / 1024.0, data->tp_count);
     }
 
     ret &= html_puts(http, "  </tbody>\n</table></p>\n");
