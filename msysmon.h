@@ -38,7 +38,7 @@
 // Constants...
 //
 
-#  define DEFAULT_CPU_LIMIT	10	// Default CPU limit for monitoring
+#  define DEFAULT_CPU_LIMIT	25	// Default CPU limit for monitoring
 #  define DEFAULT_INTERVAL	300	// Default interval between data samples
 #  define DEFAULT_MEM_LIMIT	5	// Default memory limit (percent) for monitoring
 #  define DEFAULT_PORT		8080	// Default port number

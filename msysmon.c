@@ -8,6 +8,7 @@
 //
 
 #include "msysmon.h"
+#include <cups/dnssd.h>
 
 
 //
@@ -21,6 +22,7 @@ msysmon_db_t	msysmonData;		// Monitoring data/settings
 // Local functions...
 //
 
+static void	dnssd_cb(cups_dnssd_service_t *service, void *cb_data, cups_dnssd_flags_t flags);
 static int	usage(FILE *out);
 
 
@@ -32,13 +34,16 @@ int					// O - Exit status
 main(int  argc,				// I - Number of command-line arguments
      char *argv[])			// I - Command-line arguments
 {
-  int		i;			// Looping var
-  const char	*opt;			// Current option
-  double	val;			// Value
-  char		*end;			// Pointer into value
-  char		service[255];		// Service port
-  http_addrlist_t *addrlist;		// Listen address
-  time_t	collect_time;		// Next data collection time
+  int			i;		// Looping var
+  const char		*opt;		// Current option
+  double		val;		// Value
+  char			*end;		// Pointer into value
+  char			host[256],	// Hostname
+			port[255];	// Service port
+  http_addrlist_t	*addrlist;	// Listen address
+  time_t		collect_time;	// Next data collection time
+  cups_dnssd_t		*dnssd;		// DNS-SD context
+  cups_dnssd_service_t	*service;	// DNS-SD service
 
 
   // Initialize data...
@@ -203,7 +208,8 @@ main(int  argc,				// I - Number of command-line arguments
 
 	      if (msysmonData.num_commands < MAX_COMMANDS)
 	      {
-	        strncpy(msysmonData.commands[msysmonData.num_commands], argv[i], sizeof(msysmonData.commands[0]) - 1);
+	        cupsCopyString(msysmonData.commands[msysmonData.num_commands], argv[i], sizeof(msysmonData.commands[0]));
+	        msysmonData.num_commands ++;
 	      }
 	      else
 	      {
@@ -226,9 +232,10 @@ main(int  argc,				// I - Number of command-line arguments
   MSYSMON_DEBUG("mem_limit = %u\n", msysmonData.mem_limit);
 
   // Create listeners...
-  snprintf(service, sizeof(service), "%d", msysmonData.port);
+  httpGetHostname(/*http*/NULL, host, sizeof(host));
+  snprintf(port, sizeof(port), "%d", msysmonData.port);
 
-  if ((addrlist = httpAddrGetList(/*name*/NULL, AF_INET, service)) == NULL)
+  if ((addrlist = httpAddrGetList(/*name*/NULL, AF_INET, port)) == NULL)
   {
     fprintf(stderr, "msysmon: Unable to lookup IPv4 listen address: %s\n", cupsGetErrorString());
     return (1);
@@ -244,7 +251,7 @@ main(int  argc,				// I - Number of command-line arguments
     httpAddrFreeList(addrlist);
   }
 
-  if ((addrlist = httpAddrGetList(/*name*/NULL, AF_INET6, service)) == NULL)
+  if ((addrlist = httpAddrGetList(/*name*/NULL, AF_INET6, port)) == NULL)
   {
     fprintf(stderr, "msysmon: Unable to lookup IPv4 listen address: %s\n", cupsGetErrorString());
     return (1);
@@ -264,6 +271,35 @@ main(int  argc,				// I - Number of command-line arguments
   {
     fputs("msysmon: Unable to create IPv4/6 listeners.\n", stderr);
     return (1);
+  }
+
+  fprintf(stderr, "msysmon: Web interface available at 'http://%s:%d/'.\n", host, msysmonData.port);
+
+  // Advertise the web page...
+  if ((dnssd = cupsDNSSDNew(/*error_cb*/NULL, /*cb_data*/NULL)) != NULL)
+  {
+    bool	success = false;		// Did we advertise successfully?
+    char	name[256],		// Service name
+		*nameptr;		// Pointer into name
+
+    cupsCopyString(name, host, sizeof(name));
+    if ((nameptr = strchr(name, '.')) != NULL)
+      *nameptr = '\0';
+    cupsConcatString(name, " statistics", sizeof(name));
+
+    if ((service = cupsDNSSDServiceNew(dnssd, CUPS_DNSSD_IF_INDEX_ANY, name, dnssd_cb, /*cb_data*/NULL)) != NULL)
+    {
+      success = cupsDNSSDServiceAdd(service, "_http._tcp", /*domain*/NULL, /*host*/NULL, msysmonData.port, /*num_txt*/0, /*txt*/NULL);
+      if (success)
+        success = cupsDNSSDServicePublish(service);
+    }
+
+    if (!success)
+      fprintf(stderr, "msysmon: Unable to advertise web interface as '%s'.\n", name);
+  }
+  else
+  {
+    fputs("msysmon: Unable to advertise web interface.\n", stderr);
   }
 
   // Run...
@@ -305,6 +341,24 @@ main(int  argc,				// I - Number of command-line arguments
   }
 
   return (0);
+}
+
+
+//
+// 'dnssd_cb()' - DNS-SD service callback.
+//
+
+static void
+dnssd_cb(
+    cups_dnssd_service_t *service,	// I - Service
+    void                 *cb_data,	// I - Callback data (unused)
+    cups_dnssd_flags_t   flags)		// I - Flags
+{
+  MSYSMON_DEBUG("DNS-SD callback for service %p (%s), flags=0x%02X\n", service, cupsDNSSDServiceGetName(service), flags);
+
+  (void)service;
+  (void)cb_data;
+  (void)flags;
 }
 
 

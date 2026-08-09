@@ -5,6 +5,9 @@ Mike's System Monitor (msysmon) is an administrator/developer tool for
 monitoring the CPU, memory, network, and storage usage on Linux systems via the
 `/proc` filesystem.
 
+> *Note:* There is also some limited, experimental support for macOS - most
+> stuff works except per-process CPU usage.
+
 
 Goals
 -----
@@ -27,11 +30,34 @@ Goals
 Building and Installing
 -----------------------
 
+Use the usual autoconf stuff:
+
+    ./configure
+    make
+    make install
 
 
 Running
 -------
 
+Just run the "msysmon" program:
+
+    msysmon
+
+The `-I` option sets the sampling interval (default is every 5 minutes), for
+example to sample every 10 minutes:
+
+    msysmon -I 10m
+
+By default msysmon will automatically watch processes that use excessive CPU or
+memory, but you can force watching of specific (named) processes with the `-w`
+option, for example:
+
+    msysmon -w myprogram
+
+Other options can be shown with the man page or `--help` option:
+
+    msysmon --help
 
 
 Legal Stuff

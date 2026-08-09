@@ -124,10 +124,12 @@ add_process(pid_t      pid,		// I - Process ID
 
   proc->pid = pid;
 
-  strncpy(proc->command, command, sizeof(proc->command) - 1);
+  cupsCopyString(proc->command, command, sizeof(proc->command));
 
   proc->seen       = true;
   proc->start_time = proc->data_start = time(NULL);
+
+  fprintf(stderr, "msysmon: Following pid %d (%s)\n", (int)pid, command);
 
   return (proc);
 }
