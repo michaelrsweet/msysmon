@@ -9,7 +9,6 @@
 
 #include "msysmon.h"
 #include <stdarg.h>
-#include <ctype.h>
 #include "msysmon_png.h"
 
 

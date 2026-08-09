@@ -14,6 +14,7 @@
 #  include <stdint.h>
 #  include <stdbool.h>
 #  include <string.h>
+#  include <ctype.h>
 #  include <errno.h>
 #  include <poll.h>
 #  include <cups/cups.h>

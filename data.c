@@ -8,6 +8,7 @@
 //
 
 #include "msysmon.h"
+#include <math.h>
 #ifdef __APPLE__
 #  include <libproc.h>
 #  include <sys/proc_info.h>
@@ -201,6 +202,100 @@ get_process_info(void)
     proc->seen = proc->end_time > 0;
 
 #ifdef __APPLE__
+//  int		ncpu;			// Number of CPUs
+  FILE		*fp;			// "ps" command output
+  char		line[1024],		// Line from "ps" command
+		*ptr,			// Pointer into line
+		*command;		// Command name
+  long		pid;			// Process ID
+  uint16_t	cpu_percent;		// CPU use in percent
+  uint32_t	mem_k;			// Memory use in kibibytes
+  uint16_t	tp_count;		// Thread count
+
+
+  // Run the "ps" command to get the process info...
+  if ((fp = popen("/bin/ps -axo 'pid,%cpu,rss,wq,comm'", "r")) != NULL)
+  {
+//    ncpu = get_num_cpus();
+
+    fgets(line, sizeof(line), fp);
+
+    while (fgets(line, sizeof(line), fp))
+    {
+      // Parse the line from the ps command...
+      if ((ptr = line + strlen(line) - 1) >= line && *ptr == '\n')
+        *ptr = '\0';
+
+      pid = strtol(line, &ptr, 10);
+      if (!ptr)
+        continue;
+
+      cpu_percent = (uint16_t)ceil(strtod(ptr, &ptr));
+      if (!ptr)
+        continue;
+
+      mem_k = (uint32_t)strtol(ptr, &ptr, 10);
+      if (!ptr)
+        continue;
+
+      tp_count = (uint16_t)strtol(ptr, &command, 10);
+      if (!command)
+        continue;
+
+      while (*command && isspace(*command & 255))
+        command ++;
+
+      if ((ptr = strrchr(command, '/')) != NULL)
+        command = ptr + 1;
+
+      // See if we need to follow this process...
+      if ((proc = find_process(pid)) == NULL)
+      {
+        for (j = 0; j < msysmonData.num_commands; j ++)
+        {
+          if (!strcmp(command, msysmonData.commands[j]))
+            break;
+        }
+
+        if (j < msysmonData.num_commands || cpu_percent >= msysmonData.cpu_limit || mem_k >= msysmonData.mem_limit)
+        {
+          if ((proc = add_process(pid, command)) == NULL && !reported_too_many)
+          {
+            fputs("msysmon: Too many interesting processes.\n", stderr);
+            reported_too_many = true;
+          }
+        }
+      }
+
+      if (proc)
+      {
+        msysmon_data_t *data;		// Current data sample
+
+        proc->seen = true;
+
+        if (proc->num_data >= MAX_DATA)
+        {
+          memmove(proc->data, proc->data + 1, (MAX_DATA - 1) * sizeof(msysmon_data_t));
+          data = proc->data + MAX_DATA - 1;
+
+          proc->data_start += msysmonData.interval;
+        }
+        else
+        {
+          data = proc->data + proc->num_data;
+          proc->num_data ++;
+        }
+
+        data->cpu_percent = cpu_percent;
+        data->tp_count    = tp_count;
+        data->mem_k       = mem_k;
+      }
+    }
+
+    pclose(fp);
+  }
+
+#elif defined(X__APPLE__)
   int		ncpu;			// Number of CPUs
   int		pidsize;		// Size of process IDs
   unsigned	num_pids;		// Number of process IDs
@@ -312,6 +407,7 @@ get_process_info(void)
 
     free(pids);
   }
+
 
 #else // Linux
 #endif // __APPLE__
