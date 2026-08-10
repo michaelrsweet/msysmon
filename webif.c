@@ -16,6 +16,8 @@
 // Local functions...
 //
 
+static int	compare_procs(msysmon_proc_t **a, msysmon_proc_t **b);
+
 static char	*get_datetime(time_t t, int secs, char *buffer, size_t bufsize);
 
 static bool	html_escape(http_t *http, const char *s, size_t slen);
@@ -126,6 +128,69 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
   httpClose(http);
 
   return (NULL);
+}
+
+
+//
+// 'compare_procs()' - Compare two processes.
+//
+
+static int				// O - Result of comparison
+compare_procs(msysmon_proc_t **a,	// I - First process
+              msysmon_proc_t **b)	// I - Second process
+{
+  int			result = 0;	// Result of comparison
+  msysmon_data_t	*adata,		// First process data
+			*bdata;		// Second process data
+
+
+  adata = a[0]->num_data > 0 ? a[0]->data + a[0]->num_data - 1 : NULL;
+  bdata = b[0]->num_data > 0 ? b[0]->data + b[0]->num_data - 1 : NULL;
+
+  switch (msysmonData.sort_by)
+  {
+    case -FIELD_CPU :
+        if (adata && bdata)
+          result = (int)bdata->cpu_percent - (int)adata->cpu_percent;
+        break;
+    case FIELD_CPU :
+        if (adata && bdata)
+          result = (int)adata->cpu_percent - (int)bdata->cpu_percent;
+        break;
+    case -FIELD_MEM :
+        if (adata && bdata)
+          result = (int)bdata->mem_k - (int)adata->mem_k;
+        break;
+    case FIELD_MEM :
+        if (adata && bdata)
+          result = (int)adata->mem_k - (int)bdata->mem_k;
+        break;
+    case -FIELD_NAME :
+        result = strcasecmp(b[0]->command, a[0]->command);
+        break;
+    case FIELD_NAME :
+        result = strcasecmp(a[0]->command, b[0]->command);
+        break;
+    case -FIELD_PID :
+        result = (int)b[0]->pid - (int)a[0]->pid;
+        break;
+    case FIELD_PID :
+        result = (int)a[0]->pid - (int)b[0]->pid;
+        break;
+    case -FIELD_THREADS :
+        if (adata && bdata)
+          result = (int)bdata->tp_count - (int)adata->tp_count;
+        break;
+    case FIELD_THREADS :
+        if (adata && bdata)
+          result = (int)adata->tp_count - (int)bdata->tp_count;
+        break;
+  }
+
+  if (result == 0)
+    result = (int)a[0]->pid - (int)b[0]->pid;
+
+  return (result);
 }
 
 
@@ -267,7 +332,10 @@ html_header(http_t     *http,		// I - Client connection
 		   "body {\n"
 		   "  font-family: sans-serif;\n"
 		   "  font-size: 20px;\n"
-		   "  margin: 36pt 18pt;\n"
+		   "  margin: 20px;\n"
+		   "}\n"
+		   "h1 {\n"
+		   "  margin-top: 0;\n"
 		   "}\n"
 		   "table {\n"
 		   "  border-bottom: black 1px solid;\n"
@@ -760,11 +828,47 @@ send_html_report(http_t *http,		// I - Client connection
                  char   *options)	// I - Options or `NULL` if none
 {
   bool		ret = true;		// Return value
+  unsigned	i;			// Looping var
+  int		f;			// Field number
   msysmon_data_t *data;			// Pointer to last update
+  static const char * const fields[] =	// Sort field names
+  {
+    "pid",
+    "name",
+    "cpu",
+    "mem",
+    "threads"
+  };
+  static const char * const headings[] =// Field headings
+  {
+    "PID",
+    "Name",
+    "CPU",
+    "Memory",
+    "Threads"
+  };
 
 
   // Response and HTML header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
+
+  // Handle sorting changes...
+  if (options && !strncmp(options, "sort_by=", 8))
+  {
+    for (f = FIELD_PID; f <= FIELD_THREADS; f ++)
+    {
+      if (!strcasecmp(options + 8, fields[f - 1]))
+      {
+        msysmonData.sort_by = f;
+        break;
+      }
+      else if (options[8] == '-' && !strcasecmp(options + 9, fields[f - 1]))
+      {
+        msysmonData.sort_by = -f;
+        break;
+      }
+    }
+  }
 
   ret &= html_header(http, /*title*/NULL, /*refresh*/0/*msysmonData.interval < 10 ? 10 : msysmonData.interval*/);
 
@@ -781,21 +885,44 @@ send_html_report(http_t *http,		// I - Client connection
 
   ret &= html_puts(http, "<p><img src=\"/history.svg\" width=\"100%\"></p>\n");
 
-  ret &= html_puts(http, "<h2>Interesting Processes</h2>\n");
+  ret &= html_printf(http, "<h2>Interesting Processes (%u)</h2>\n", msysmonData.num_processes);
 
-  if (msysmonData.num_processes == 0)
+  if (msysmonData.num_processes > 0)
   {
-    ret &= html_puts(http, "<p>None.<p>\n");
-  }
-  else
-  {
-    unsigned		i;		// Looping var
+    msysmon_proc_t	*procs[MAX_PROCS];
+					// Sorted list of processes
     msysmon_proc_t	*proc;		// Current process
 
-    ret &= html_printf(http, "<p>%u interesting processes:<br>\n<table summary=\"Interesting Processes\">\n  <thead>\n    <tr><th>PID</th><th>Command</th><th>CPU</th><th>Memory</th><th>Threads</th></tr>\n  </thead>\n  <tbody>\n", msysmonData.num_processes);
+    for (i = 0, proc = msysmonData.processes; i < msysmonData.num_processes; i ++, proc ++)
+      procs[i] = proc;
 
-    for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
+    qsort(procs, msysmonData.num_processes, sizeof(msysmon_proc_t *), (int (*)(const void *, const void *))compare_procs);
+
+    ret &= html_printf(http, "<p><table summary=\"Interesting Processes\">\n  <thead>\n    <tr>", msysmonData.num_processes);
+    for (f = FIELD_PID; f <= FIELD_THREADS; f ++)
     {
+      if (msysmonData.sort_by == f)
+      {
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=-%s\">&mapstoup; %s &mapstoup;</a></th>", fields[f - 1], headings[f - 1]);
+      }
+      else if (msysmonData.sort_by == -f)
+      {
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=%s\">&mapstodown; %s &mapstodown;</a></th>", fields[f - 1], headings[f - 1]);
+      }
+      else if (f <= FIELD_NAME)
+      {
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=%s\">%s</a></th>", fields[f - 1], headings[f - 1]);
+      }
+      else
+      {
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=-%s\">%s</a></th>", fields[f - 1], headings[f - 1]);
+      }
+    }
+    ret &= html_puts(http, "</tr>\n  </thead>\n  <tbody>\n");
+
+    for (i = 0; i < msysmonData.num_processes; i ++)
+    {
+      proc = procs[i];
       data = proc->data + proc->num_data - 1;
 
       ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);

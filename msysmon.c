@@ -56,6 +56,7 @@ main(int  argc,				// I - Number of command-line arguments
   msysmonData.port      = DEFAULT_PORT;
   msysmonData.cpu_limit = DEFAULT_CPU_LIMIT;
   msysmonData.mem_limit = DEFAULT_MEM_LIMIT * msysmonGetSystemMemory() / 100;
+  msysmonData.sort_by   = -FIELD_CPU;
 
   // Parse command-line...
   for (i = 1; i < argc; i ++)
@@ -197,6 +198,41 @@ main(int  argc,				// I - Number of command-line arguments
 	      }
 
 	      msysmonData.port = (int)val;
+              break;
+
+	  case 's' : // -s FIELD
+              i ++;
+              if (i >= argc)
+              {
+                fputs("msysmon: Missing command after '-w'.\n", stderr);
+                return (usage(stderr));
+              }
+
+	      if (!strcasecmp(argv[i], "cpu") || !strcasecmp(argv[i], "+cpu"))
+	        msysmonData.sort_by = FIELD_CPU;
+	      else if (!strcasecmp(argv[i], "-cpu"))
+	        msysmonData.sort_by = -FIELD_CPU;
+	      else if (!strcasecmp(argv[i], "mem") || !strcasecmp(argv[i], "+mem"))
+	        msysmonData.sort_by = FIELD_MEM;
+	      else if (!strcasecmp(argv[i], "-mem"))
+	        msysmonData.sort_by = -FIELD_MEM;
+	      else if (!strcasecmp(argv[i], "name") || !strcasecmp(argv[i], "+name"))
+	        msysmonData.sort_by = FIELD_NAME;
+	      else if (!strcasecmp(argv[i], "-name"))
+	        msysmonData.sort_by = -FIELD_NAME;
+	      else if (!strcasecmp(argv[i], "pid") || !strcasecmp(argv[i], "+pid"))
+	        msysmonData.sort_by = FIELD_PID;
+	      else if (!strcasecmp(argv[i], "-pid"))
+	        msysmonData.sort_by = -FIELD_PID;
+	      else if (!strcasecmp(argv[i], "threads") || !strcasecmp(argv[i], "+threads"))
+	        msysmonData.sort_by = FIELD_THREADS;
+	      else if (!strcasecmp(argv[i], "-threads"))
+	        msysmonData.sort_by = -FIELD_THREADS;
+	      else
+	      {
+	        fprintf(stderr, "msysmon: Unknown sort by field '%s'.\n", argv[i]);
+	        return (usage(stderr));
+	      }
               break;
 
           case 'w' : // -w COMMAND
@@ -378,6 +414,7 @@ usage(FILE *out)			// I - Output file
   fputs("  -I INTERVAL        Set sampling interval.\n", out);
   fputs("  -M MEM-LIMIT       Set memory usage for auto-monitoring.\n", out);
   fputs("  -p PORT-NUMBER     Set web interface port.\n", out);
+  fputs("  -s [-]FIELD        Sort the process list by cpu, mem, name, pid, or threads.\n", out);
   fputs("  -w COMMAND         Add command to monitor.\n", out);
 
   return (out == stdout ? 0 : 1);

@@ -53,6 +53,15 @@
 // Types...
 //
 
+enum msysmon_field_e			// Display fields
+{
+  FIELD_PID = 1,
+  FIELD_NAME,
+  FIELD_CPU,
+  FIELD_MEM,
+  FIELD_THREADS
+};
+
 typedef struct msysmon_data_s		// Common monitoring data
 {
   uint16_t 	cpu_percent;		// CPU as a percentage
@@ -85,6 +94,9 @@ typedef struct msysmon_db_s		// Record of all data
   char		name[256];		// Name of system monitor
   nfds_t	num_listeners;		// Number of listeners
   struct pollfd	listeners[2];		// Listeners
+
+  // Mode data...
+  int		sort_by;		// Sort by field
 
   // Data subject to the reader/writer lock...
   cups_rwlock_t	rwlock;			// Reader/writer lock

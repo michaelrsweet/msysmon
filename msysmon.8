@@ -6,7 +6,7 @@
 .\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
 .\" information.
 .\"
-.TH msysmon 1 "msysmon" "2026-08-09" "Michael R Sweet"
+.TH msysmon 1 "msysmon" "2026-08-10" "Michael R Sweet"
 .SH NAME
 msysmon \- mike's system monitor
 .SH SYNOPSIS
@@ -27,6 +27,9 @@ msysmon \- mike's system monitor
 ] [
 .B \-p
 .I PORT-NUMBER
+] [
+.B \-s
+.I FIELD
 ] [
 .B \-w
 .I COMMAND
@@ -64,6 +67,11 @@ The limit can use the unit suffix "%" for a percentage of real memory, "k" for m
 \fB\-p \fIPORT-NUMBER\fR
 Specifies the port number of the web interface.
 The default post number is 8080.
+.TP 5
+\fB\-s \fIFIELD\fR
+Specifies the primary sorting field for the process list in the web interface - "cpu", "mem", "name", "pid", or "threads".
+A leading "-" specifies descending order.
+The default is "-cpu".
 .TP 5
 \fB\-w \fICOMMAND\fR
 Explicitly watches the specified command.
