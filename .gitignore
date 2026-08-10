@@ -1,4 +1,7 @@
 /autom4te.cache
+/config.status
+/config.log
+/configure~
 /Makefile
 /msysmon
 *.o

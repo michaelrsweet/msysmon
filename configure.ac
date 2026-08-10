@@ -21,7 +21,7 @@ AC_PREREQ([2.70])
 
 
 dnl Package name and version...
-AC_INIT([msysmon], [0.1.0], [https://github.com/michaelrsweet/msysmon/issues], [msysmon], [https://www.msweet.org/msysmon/])
+AC_INIT([msysmon], [1.0.0], [https://github.com/michaelrsweet/msysmon/issues], [msysmon], [https://www.msweet.org/msysmon/])
 
 VERSION="AC_PACKAGE_VERSION"
 AC_SUBST([VERSION])
