@@ -6,7 +6,7 @@
    id="svg12"
    sodipodi:docname="msysmon.svg"
    inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
-   inkscape:export-filename="msysmon.png"
+   inkscape:export-filename="../../msysmon.png"
    inkscape:export-xdpi="112.5"
    inkscape:export-ydpi="112.5"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -24,11 +24,11 @@
      borderopacity="1.0"
      inkscape:showpageshadow="2"
      inkscape:pageopacity="0.0"
-     inkscape:pagecheckerboard="0"
+     inkscape:pagecheckerboard="true"
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
-     inkscape:zoom="7.8828125"
-     inkscape:cx="63.936571"
+     inkscape:zoom="6.9765625"
+     inkscape:cx="64"
      inkscape:cy="64"
      inkscape:window-width="1704"
      inkscape:window-height="1186"
@@ -63,30 +63,31 @@
        ry="8.0"
        fill="rgb(0%, 0%, 0%)"
        stroke="none"
-       id="rect1" />
+       id="rect1"
+       style="fill:#ffffff;stroke:#000000;stroke-opacity:1;stroke-width:0.25;stroke-dasharray:none" />
     <text
        x="64"
        text-anchor="middle"
        y="116"
        id="text1"
-       style="-inkscape-font-specification:'Open Sans, Normal';font-family:'Open Sans';font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#ff0000"><tspan
+       style="-inkscape-font-specification:'Open Sans, Ultra-Bold';font-family:'Open Sans';font-weight:800;font-style:normal;font-stretch:normal;font-variant:normal;font-size:13.2283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#000000"><tspan
          fill="#ffffff"
          font-family="OpenSans"
          font-size="14px"
          id="tspan1"
-         style="-inkscape-font-specification:'Open Sans, Normal';font-family:'Open Sans';font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#ff0000">System Monitor</tspan></text>
+         style="-inkscape-font-specification:'Open Sans, Ultra-Bold';font-family:'Open Sans';font-weight:800;font-style:normal;font-stretch:normal;font-variant:normal;font-size:13.22834646px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000">System Monitor</tspan></text>
     <path
-       style="fill:#7f7f7f;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="fill:#6699ff;fill-opacity:1;stroke:#0000ff;stroke-width:3.77952756;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1;stroke-dasharray:none"
        d="M 12,54.803 32,49.348 53,54.676 74,49.221 95,54.802775 116,47.826 V 96 H 12"
        id="path13"
        sodipodi:nodetypes="cccccccc" />
     <path
-       style="fill:none;stroke:#ff0000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="fill:none;stroke:#ff0000;stroke-width:3.77952756;stroke-linecap:butt;stroke-linejoin:round;stroke-opacity:1;stroke-dasharray:none"
        d="m 12,66.854 20,-23.595 21,1.776 21,-22.201 21,37.677 21,2.411"
        id="path14"
        sodipodi:nodetypes="cccccc" />
     <path
-       style="fill:none;stroke:#ffffff;stroke-width:1.00157;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:none;stroke:#000000;stroke-width:3.77952756;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
        d="M 12,12 V 96 H 116 V 12"
        id="path12"
        sodipodi:nodetypes="cccc" />

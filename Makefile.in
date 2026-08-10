@@ -106,3 +106,4 @@ msysmon:	$(OBJS)
 
 # Dependencies...
 $(OBJS):	Makefile msysmon.h
+webif.o:	msysmon_png.h

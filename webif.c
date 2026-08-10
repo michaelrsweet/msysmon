@@ -798,7 +798,7 @@ send_html_report(http_t *http,		// I - Client connection
     {
       data = proc->data + proc->num_data - 1;
 
-      ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s<button onclick=\"toggle_graph('pid%d');\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" class=\"bi bi-graph-up\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" d=\"M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07\"/></svg></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
+      ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
 
       if (data->mem_k > 1048576)
 	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
