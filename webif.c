@@ -290,7 +290,38 @@ html_header(http_t     *http,		// I - Client connection
 		   "tbody tr td:last-child {\n"
 		   "  border-right: none;\n"
 		   "}\n"
-		   "    </style>\n");
+		   "a:link {\n"
+		   "  text-decoration: none;\n"
+		   "}\n"
+		   "div.modal {\n"
+		   "  background: rgba(255,255,255,0.9);\n"
+		   "  border: gray 1px solid;\n"
+		   "  box-shadow: 2px 2px 3px rgba(0,0,0,0.5);\n"
+		   "  display: none;\n"
+		   "  left: 10%;\n"
+		   "  overflow: auto;\n"
+		   "  padding: 0 10px 10px;\n"
+		   "  position: absolute;\n"
+		   "  width: 80%;\n"
+		   "  z-index: 1;\n"
+		   "}\n"
+		   "span.mclose {\n"
+		   "  color: black;\n"
+		   "  cursor: pointer;\n"
+		   "  float: right;\n"
+		   "  font-size: 200%;\n"
+		   "  font-weight: bold;\n"
+		   "  text-decoration: none;\n"
+		   "}\n"
+		   "    </style>\n"
+		   "    <script>\n"
+		   "function close_modal(name) {\n"
+		   "  document.getElementById(name).style.display = 'none';\n"
+		   "}\n"
+		   "function open_modal(name) {\n"
+		   "  document.getElementById(name).style.display = 'block';\n"
+		   "}\n"
+		   "    </script>\n");
 
   ret &= html_puts(http, "  </head>\n  <body>\n");
 
@@ -572,8 +603,7 @@ send_history_svg(http_t *http,		// I - Client connection
   unsigned	num_data;		// Number of data elements
   msysmon_data_t *data = NULL,		// Data to display
 		*dataptr;		// Current data
-  uint32_t	max_mem = msysmonGetSystemMemory();
-					// Maximum amount of memory
+  uint32_t	max_mem = 0x100;	// Maximum amount of memory
   double	mem_div;		// Memory divisor
   const char	*mem_units;		// Memory units
   unsigned	disp_data = MAX_DATA / 4;
@@ -609,9 +639,23 @@ send_history_svg(http_t *http,		// I - Client connection
     {
       if (proc->pid == (pid_t)pid)
       {
+        uint32_t	high_mem;	// Highest memory reading
+
         data_start = proc->data_start;
         data       = proc->data;
         num_data   = proc->num_data;
+
+        for (i = num_data, high_mem = 0, dataptr = data; i > 0; i --, dataptr ++)
+        {
+          if (dataptr->mem_k > high_mem)
+            high_mem = dataptr->mem_k;
+        }
+
+        for (max_mem = 0x100; max_mem < 0x80000000; max_mem *= 2)
+        {
+          if (high_mem < max_mem)
+            break;
+        }
         break;
       }
     }
@@ -621,6 +665,7 @@ send_history_svg(http_t *http,		// I - Client connection
   {
     data_start = msysmonData.data_start;
     data       = msysmonData.data;
+    max_mem    = msysmonGetSystemMemory();
     num_data   = msysmonData.num_data;
   }
 
@@ -727,7 +772,7 @@ send_html_report(http_t *http,		// I - Client connection
   // Response and HTML header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
 
-  ret &= html_header(http, /*title*/NULL, /*refresh*/msysmonData.interval < 10 ? 10 : msysmonData.interval);
+  ret &= html_header(http, /*title*/NULL, /*refresh*/0/*msysmonData.interval < 10 ? 10 : msysmonData.interval*/);
 
   MSYSMON_DEBUG("Read lock...\n");
   cupsRWLockRead(&msysmonData.rwlock);
@@ -752,20 +797,19 @@ send_html_report(http_t *http,		// I - Client connection
   {
     unsigned		i;		// Looping var
     msysmon_proc_t	*proc;		// Current process
-    char		history[256];	// History link
 
     ret &= html_printf(http, "<p>%u interesting processes:<br>\n<table summary=\"Interesting Processes\">\n  <thead>\n    <tr><th>PID</th><th>Command</th><th>CPU</th><th>Memory</th><th>Threads</th></tr>\n  </thead>\n  <tbody>\n", msysmonData.num_processes);
 
     for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
     {
-      snprintf(history, sizeof(history), "/history.svg?pid=%d", (int)proc->pid);
-
       data = proc->data + proc->num_data - 1;
 
+      ret &= html_printf(http, "    <tr><td>%d</td><td><div class=\"modal\" id=\"pid%d\"><span class=\"mclose\" onclick=\"close_modal('pid%d');\">&times;</span><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div>%s%s</td><td><button onclick=\"open_modal('pid%d');\">%u%%</button></td><td><button onclick=\"open_modal('pid%d');\">", (int)proc->pid, (int)proc->pid, (int)proc->pid, (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, data->cpu_percent, (int)proc->pid);
+
       if (data->mem_k > 1048576)
-	ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fGB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", history, data->cpu_percent, history, data->mem_k / 1048576.0, data->tp_count);
+	ret &= html_printf(http, "%.1fGB</button></td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
       else
-	ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s</td><td><a href=\"%s\">%u%%</a></td><td><a href=\"%s\">%.1fMB</a></td><td>%u</td></tr>\n", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", history, data->cpu_percent, history, data->mem_k / 1024.0, data->tp_count);
+	ret &= html_printf(http, "%.1fMB</button></td><td>%u</td></tr>\n", data->mem_k / 1024.0, data->tp_count);
     }
 
     ret &= html_puts(http, "  </tbody>\n</table></p>\n");
