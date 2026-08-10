@@ -297,6 +297,9 @@ get_process_info(void)
       if ((ptr = strrchr(command, '/')) != NULL)
         command = ptr + 1;
 
+      if (!strcmp(command, "ps"))
+        continue;
+
       // See if we need to follow this process...
       if ((proc = find_process(pid)) == NULL)
       {
