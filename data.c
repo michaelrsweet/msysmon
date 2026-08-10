@@ -260,7 +260,13 @@ get_process_info(void)
   for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
     proc->seen = proc->end_time > 0;
 
-  // Run the "ps" command to get the process info...
+  // Run the "ps" command to get the process info.
+  //
+  // Note: Yes, there are more direct ways to get this information however
+  // macOS requires root to use much of the libproc calls and Linux spreads
+  // the process information across multiple files under /proc.  Using the ps
+  // command is sufficient for the information being collected, and will
+  // probably make it easier to port this code to other Unix's.
 #ifdef __APPLE__
   if ((fp = popen("/bin/ps -eo 'pid,%cpu,rss,wq,comm'", "r")) != NULL)
 #else // Linux

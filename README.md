@@ -1,36 +1,31 @@
 Mike's System Monitor (msysmon)
 ===============================
 
-Mike's System Monitor (msysmon) is an administrator/developer tool for
-monitoring the CPU, memory, network, and storage usage on Linux systems via the
-`/proc` filesystem.
+`msysmon` is a lightweight administrator/developer tool for monitoring the CPU,
+memory, and threads used by processes on a Linux or macOS system.  I wrote it
+primarily to do long-term testing of embedded Linux systems where memory leaks,
+crashes, and/or CPU spins can cause problems but are often hard to track down.
 
-> *Note:* There is also some limited, experimental support for macOS - most
-> stuff works except per-process CPU usage.
+`msysmon` runs in the background to collect usage information and provides a
+simple web interface for viewing it complete with graphs.
+
+> *Note:* This is a developer tool and is not provided or distributed for
+> production purposes.  It comes with absolutely no warranty.
 
 
-Goals
------
+Requirements
+------------
 
-1. Monitor embedded Linux systems over a long period of time, i.e., 1 month or
-   more, to see trends in memory, CPU, network, or storage use that could impact
-   reliability/availability.
-
-2. Correlate usage to individual processes and identify problematic programs
-   automatically.
-
-3. Make easy-to-read reports on current and historical usage, with "top 10" and
-   explicitly-identified processes listed.
-
-4. Have low overhead to run even on production systems.
-
-5. Be able to save overall and per-process data for further analysis.
+- macOS or Linux system
+- C99 compiler (clang and GCC work fine)
+- libcups (3.0 or later)
 
 
 Building and Installing
 -----------------------
 
-Use the usual autoconf stuff:
+`msysmon` uses an autoconf-based configure script to produce a makefile that
+builds and installs the software:
 
     ./configure
     make
@@ -40,18 +35,19 @@ Use the usual autoconf stuff:
 Running
 -------
 
-Just run the "msysmon" program:
+Just run the `msysmon` program:
 
     msysmon
 
-The `-I` option sets the sampling interval (default is every 5 minutes), for
-example to sample every 10 minutes:
+The `-I` (interval) option sets the sampling interval - the default is every 5
+minutes.  For example, use the following command to sample processes every 10
+minutes:
 
     msysmon -I 10m
 
-By default msysmon will automatically watch processes that use excessive CPU or
-memory, but you can force watching of specific (named) processes with the `-w`
-option, for example:
+By default `msysmon` will automatically watch processes that use excessive CPU
+or memory, but you can force watching of specific (named) processes with the
+`-w` (watch) option, for example:
 
     msysmon -w myprogram
 
