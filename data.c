@@ -64,22 +64,53 @@ msysmonCollectData(void)
 uint32_t				// O - Real memory in kibibytes
 msysmonGetSystemMemory(void)
 {
+  static uint32_t mem_k = 0;		// Memory in kibibytes
 #ifdef __APPLE__
   int64_t	mem;			// Memory in bytes
   size_t	memsize;		// Size of memory
 
-  memsize = sizeof(mem);
 
-  if (sysctlbyname("hw.memsize", &mem, &memsize, /*newp*/NULL, /*newlen*/0))
+  if (mem_k == 0)
   {
-    fprintf(stderr, "msysmon: Unable to get hw.memsize: %s\n", strerror(errno));
-    memsize = 16UL * 1024UL * 1024UL * 1024UL;
+    memsize = sizeof(mem);
+
+    if (sysctlbyname("hw.memsize", &mem, &memsize, /*newp*/NULL, /*newlen*/0))
+    {
+      fprintf(stderr, "msysmon: Unable to get hw.memsize: %s\n", strerror(errno));
+      memsize = 16UL * 1024UL * 1024UL * 1024UL;
+    }
+
+    mem_k = (uint32_t)(mem / 1024);
   }
 
-  return ((uint32_t)(mem / 1024));
-
 #else
+  FILE		*fp;			// /proc/meminfo file
+  char		line[1024],		// Line from file
+		*ptr;			// Pointer into line
+  long		mem;			// Memory in bytes
+
+
+  if (mem_k == 0 && (fp = fopen("/proc/meminfo", "r")) != NULL)
+  {
+    while (fgets(line, sizeof(line), fp))
+    {
+      if ((ptr = strchr(line, ':')) != NULL)
+      {
+        *ptr++ = '\0';
+        if (!strcmp(line, "MemTotal"))
+        {
+          mem = strtol(ptr, NULL, 10);
+          mem_k = (uint32_t)(mem / 1024UL);
+          break;
+        }
+      }
+    }
+
+    fclose(fp);
+  }
 #endif // __APPLE__
+
+  return (mem_k);
 }
 
 
@@ -164,14 +195,34 @@ find_process(pid_t pid)			// I - Process ID
 static int				// O - Number of CPUs
 get_num_cpus(void)
 {
-  int		ncpu = 1;		// Number of CPUs
+  static int	ncpu = 0;		// Number of CPUs
 #ifdef __APPLE__
   size_t	size;			// Sysctl size
 
 
-  size = sizeof(ncpu);
-  sysctlbyname("hw.ncpu", &ncpu, &size, /*newp*/NULL, /*newlen*/0);
+  if (ncpu == 0)
+  {
+    size = sizeof(ncpu);
+    sysctlbyname("hw.ncpu", &ncpu, &size, /*newp*/NULL, /*newlen*/0);
+  }
+
 #else // Linux
+  if (ncpu == 0)
+  {
+    FILE	*fp;			// /proc/cpuinfo file
+    char	line[1024];		// Line from file
+
+    if ((fp = fopen("/proc/cpuinfo", "r")) != NULL)
+    {
+      while (fgets(line, sizeof(line), fp))
+      {
+        if (!strncmp(line, "processor ", 10))
+          ncpu ++;
+      }
+
+      fclose(fp);
+    }
+  }
 #endif // __APPLE__
 
   MSYSMON_DEBUG("ncpu=%d\n", ncpu);
@@ -189,8 +240,15 @@ get_process_info(void)
 {
   unsigned	i, j;			// Looping vars
   bool		ret = true;		// Return value
+  FILE		*fp;			// "ps" command output
+  char		line[1024],		// Line from "ps" command
+		*ptr,			// Pointer into line
+		*command;		// Command name
+  long		pid;			// Process ID
+  uint16_t	cpu_percent;		// CPU use in percent
+  uint32_t	mem_k;			// Memory use in kibibytes
+  uint16_t	tp_count;		// Thread count
   msysmon_proc_t *proc;			// Current process
-  time_t	curtime = time(NULL);	// Current time
   static bool	reported_too_many = false;
 					// Have we reported there are too many processes?
 
@@ -201,23 +259,13 @@ get_process_info(void)
   for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
     proc->seen = proc->end_time > 0;
 
-#ifdef __APPLE__
-//  int		ncpu;			// Number of CPUs
-  FILE		*fp;			// "ps" command output
-  char		line[1024],		// Line from "ps" command
-		*ptr,			// Pointer into line
-		*command;		// Command name
-  long		pid;			// Process ID
-  uint16_t	cpu_percent;		// CPU use in percent
-  uint32_t	mem_k;			// Memory use in kibibytes
-  uint16_t	tp_count;		// Thread count
-
-
   // Run the "ps" command to get the process info...
-  if ((fp = popen("/bin/ps -axo 'pid,%cpu,rss,wq,comm'", "r")) != NULL)
+#ifdef __APPLE__
+  if ((fp = popen("/bin/ps -eo 'pid,%cpu,rss,wq,comm'", "r")) != NULL)
+#else // Linux
+  if ((fp = popen("/bin/ps -eo 'pid,%cpu,rss,thcount,comm'", "r")) != NULL)
+#endif // __APPLE__
   {
-//    ncpu = get_num_cpus();
-
     fgets(line, sizeof(line), fp);
 
     while (fgets(line, sizeof(line), fp))
@@ -295,128 +343,11 @@ get_process_info(void)
     pclose(fp);
   }
 
-#elif defined(X__APPLE__)
-  int		ncpu;			// Number of CPUs
-  int		pidsize;		// Size of process IDs
-  unsigned	num_pids;		// Number of process IDs
-  pid_t		*pids = NULL;		// Processes
-  char		command[MAX_COMMAND];	// Process name
-  struct proc_taskinfo pinfo;		// Process task information
-  struct proc_threadinfo tinfo;		// Process thread information
-  uint16_t	cpu_percent;		// CPU use in percent
-  uint32_t	mem_k;			// Memory use in kibibytes
-  uint16_t	tp_count;		// Thread count
-
-  if ((pidsize = proc_listpids(PROC_ALL_PIDS, /*typeinfo*/0, /*buffer*/NULL, /*buffersize*/0)) <= 0 || (pids = calloc(1, pidsize)) == NULL)
-  {
-    ret = false;
-  }
-  else
-  {
-    proc_listpids(PROC_ALL_PIDS, /*typeinfo*/0, pids, pidsize);
-
-    ncpu = get_num_cpus();
-
-    for (i = 0, num_pids = pidsize / sizeof(pid_t); i < num_pids; i ++)
-    {
-      // Stop early if a process disappears...
-      if (!pids[i])
-        break;
-
-      if ((proc = find_process(pids[i])) != NULL)
-        proc->seen = true;
-
-      if (proc_name(pids[i], command, sizeof(command)) <= 0)
-      {
-        MSYSMON_DEBUG("PID-%d: Unable to get command name (%s)\n", (int)pids[i], strerror(errno));
-        continue;
-      }
-
-      MSYSMON_DEBUG("PID-%d: command=\"%s\"\n", (int)pids[i], command);
-
-      if (proc_pidinfo(pids[i], PROC_PIDTASKINFO, /*arg*/0, &pinfo, PROC_PIDTASKINFO_SIZE) <= 0)
-      {
-        MSYSMON_DEBUG("PID-%d: Unable to get task information (%s)\n", (int)pids[i], strerror(errno));
-        mem_k    = 0;
-        tp_count = 1;
-      }
-      else
-      {
-	MSYSMON_DEBUG("PID-%d: pinfo.pti_virtual_size = %lu\n", (int)pids[i], (unsigned long)pinfo.pti_virtual_size);
-	MSYSMON_DEBUG("PID-%d: pinfo.pti_resident_size = %lu\n", (int)pids[i], (unsigned long)pinfo.pti_resident_size);
-	MSYSMON_DEBUG("PID-%d: pinfo.pti_threadnum = %d\n", (int)pids[i], (int)pinfo.pti_threadnum);
-
-	mem_k    = (uint32_t)(pinfo.pti_resident_size / 1024);
-	tp_count = (uint16_t)pinfo.pti_threadnum;
-      }
-
-      if (proc_pidinfo(pids[i], PROC_PIDTHREADINFO, /*arg*/0, &tinfo, PROC_PIDTHREADINFO_SIZE) <= 0)
-      {
-        MSYSMON_DEBUG("PID-%d: Unable to get thread information (%s)\n", (int)pids[i], strerror(errno));
-
-        cpu_percent = 0;
-      }
-      else
-      {
-	MSYSMON_DEBUG("PID-%d: tinfo.pth_cpu_usage = %d\n", (int)pids[i], tinfo.pth_cpu_usage);
-
-	cpu_percent = tinfo.pth_cpu_usage / ncpu;
-      }
-
-      // See if we need to follow this process...
-      if (!proc)
-      {
-        for (j = 0; j < msysmonData.num_commands; j ++)
-        {
-          if (!strcmp(command, msysmonData.commands[j]))
-            break;
-        }
-
-        if (j < msysmonData.num_commands || cpu_percent >= msysmonData.cpu_limit || mem_k >= msysmonData.mem_limit)
-        {
-          if ((proc = add_process(pids[i], command)) == NULL && !reported_too_many)
-          {
-            fputs("msysmon: Too many interesting processes.\n", stderr);
-            reported_too_many = true;
-          }
-        }
-      }
-
-      if (proc)
-      {
-        msysmon_data_t *data;		// Current data sample
-
-        if (proc->num_data >= MAX_DATA)
-        {
-          memmove(proc->data, proc->data + 1, (MAX_DATA - 1) * sizeof(msysmon_data_t));
-          data = proc->data + MAX_DATA - 1;
-
-          proc->data_start += msysmonData.interval;
-        }
-        else
-        {
-          data = proc->data + proc->num_data;
-          proc->num_data ++;
-        }
-
-        data->cpu_percent = cpu_percent;
-        data->tp_count    = tp_count;
-        data->mem_k       = mem_k;
-      }
-    }
-
-    free(pids);
-  }
-
-
-#else // Linux
-#endif // __APPLE__
-
   // Mark all unseen processes as terminated/done/ended
   for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
   {
     if (!proc->seen)
-      proc->end_time = curtime;
+      proc->end_time = time(NULL);
   }
 
   cupsRWUnlock(&msysmonData.rwlock);
@@ -436,12 +367,12 @@ get_system_info(void)
   uint16_t	cpu = 0;		// CPU load as a percentage
   uint32_t	mem = 0;		// Real memory usage in kibibytes
   uint16_t	nprocesses = 0;		// Process count
+  int		ncpu = get_num_cpus();	// Number of CPUs
 
 
 #ifdef __APPLE__
   // Get system values via sysctlbyname...
   size_t	size;			// Sysctl size
-  int		ncpu;			// Number of CPUs
   struct loadavg loadavg;		// Load average
   vm_statistics64_data_t vminfo;	// Memory/swap usage
   mach_msg_type_number_t vmcount = HOST_VM_INFO64_COUNT;
@@ -449,8 +380,6 @@ get_system_info(void)
   int		vmerr;			// Kernel error code
   int		pidsize;		// Size of process IDs
 
-
-  ncpu = get_num_cpus();
 
   size = sizeof(loadavg);
   if (sysctlbyname("vm.loadavg", &loadavg, &size, /*newp*/NULL, /*newlen*/0))
@@ -488,9 +417,45 @@ get_system_info(void)
 #else // Linux
   FILE		*fp;			// File in /proc
   char		line[1024],		// Line from file
-		*value;			// Value in line
+		*ptr;			// Pointer in line
+  cups_dir_t	*dir;			// /proc directory
+  cups_dentry_t	*dent;			// Directory entry
 
+  if ((fp = fopen("/proc/loadavg", "r")) != NULL)
+  {
+    if (fgets(line, sizeof(line), fp))
+      cpu = (uint16_t)(100.0 * strtod(line, NULL) / ncpu);
 
+    fclose(fp);
+  }
+
+  if ((fp = fopen("/proc/meminfo", "r")) != NULL)
+  {
+    while (fgets(line, sizeof(line), fp))
+    {
+      if ((ptr = strchr(line, ':')) != NULL)
+        *ptr++ = '\0';
+
+      if (!strcmp(line, "Active"))
+      {
+        mem = (uint32_t)strtol(ptr, NULL, 10);
+        break;
+      }
+    }
+
+    fclose(fp);
+  }
+
+  if ((dir = cupsDirOpen("/proc")) != NULL)
+  {
+    while ((dent = cupsDirRead(dir)) != NULL)
+    {
+      if (isdigit(dent->filename[0] & 255))
+        nprocesses ++;
+    }
+
+    cupsDirClose(dir);
+  }
 #endif // __APPLE__
 
   if (ret)
