@@ -266,6 +266,7 @@ html_header(http_t     *http,		// I - Client connection
 		   "    <style>\n"
 		   "body {\n"
 		   "  font-family: sans-serif;\n"
+		   "  font-size: 20px;\n"
 		   "  margin: 36pt 18pt;\n"
 		   "}\n"
 		   "table {\n"
@@ -286,6 +287,7 @@ html_header(http_t     *http,		// I - Client connection
 		   "  border-right: gray 1px solid;\n"
 		   "  padding: 2px 5px;\n"
 		   "  text-align: center;\n"
+		   "  vertical-align: top;\n"
 		   "}\n"
 		   "tbody tr td:last-child {\n"
 		   "  border-right: none;\n"
@@ -293,33 +295,23 @@ html_header(http_t     *http,		// I - Client connection
 		   "a:link {\n"
 		   "  text-decoration: none;\n"
 		   "}\n"
-		   "div.modal {\n"
-		   "  background: rgba(255,255,255,0.9);\n"
-		   "  border: gray 1px solid;\n"
-		   "  box-shadow: 2px 2px 3px rgba(0,0,0,0.5);\n"
+		   "div.graph {\n"
+		   "  background: white;\n"
+		   "  border-radius: 5px;\n"
 		   "  display: none;\n"
-		   "  left: 10%;\n"
+		   "  margin-top: 10px;\n"
 		   "  overflow: auto;\n"
-		   "  padding: 0 10px 10px;\n"
-		   "  position: absolute;\n"
-		   "  width: 80%;\n"
-		   "  z-index: 1;\n"
-		   "}\n"
-		   "span.mclose {\n"
-		   "  color: black;\n"
-		   "  cursor: pointer;\n"
-		   "  float: right;\n"
-		   "  font-size: 200%;\n"
-		   "  font-weight: bold;\n"
-		   "  text-decoration: none;\n"
+		   "  padding: 20px 10px 10px;\n"
 		   "}\n"
 		   "    </style>\n"
 		   "    <script>\n"
-		   "function close_modal(name) {\n"
-		   "  document.getElementById(name).style.display = 'none';\n"
-		   "}\n"
-		   "function open_modal(name) {\n"
-		   "  document.getElementById(name).style.display = 'block';\n"
+		   "function toggle_graph(name) {\n"
+		   "  graph = document.getElementById(name);\n"
+		   "  if (graph.style.display == 'none') {\n"
+		   "    graph.style.display = 'inline-block';\n"
+		   "  } else {\n"
+		   "    graph.style.display = 'none';\n"
+		   "  }\n"
 		   "}\n"
 		   "    </script>\n");
 
@@ -599,7 +591,6 @@ send_history_svg(http_t *http,		// I - Client connection
   unsigned	i;			// Looping var
   long		pid;			// Process ID
   msysmon_proc_t *proc;			// Process
-  char		title[256];		// Graph title
   time_t	data_start;		// Start time of data
   unsigned	num_data;		// Number of data elements
   msysmon_data_t *data = NULL,		// Data to display
@@ -615,18 +606,6 @@ send_history_svg(http_t *http,		// I - Client connection
   int		disp_off;		// Display offset
   char		datetime[256];		// Date/time string
 
-
-  // Memory units/scaling...
-  if (max_mem > 1048576)
-  {
-    mem_div   = 1048576.0;
-    mem_units = "GB";
-  }
-  else
-  {
-    mem_div   = 1024.0;
-    mem_units = "MB";
-  }
 
   MSYSMON_DEBUG("Read lock...\n");
   cupsRWLockRead(&msysmonData.rwlock);
@@ -657,7 +636,6 @@ send_history_svg(http_t *http,		// I - Client connection
           if (high_mem < max_mem)
             break;
         }
-        snprintf(title, sizeof(title), "PID %d (%s) Statistics", (int)proc->pid, proc->command);
         break;
       }
     }
@@ -669,17 +647,27 @@ send_history_svg(http_t *http,		// I - Client connection
     data       = msysmonData.data;
     max_mem    = msysmonGetSystemMemory();
     num_data   = msysmonData.num_data;
+  }
 
-    cupsCopyString(title, msysmonData.name, sizeof(title));
+  // Memory units/scaling...
+  if (max_mem > 1048576)
+  {
+    mem_div   = 1048576.0;
+    mem_units = "GB";
+  }
+  else
+  {
+    mem_div   = 1024.0;
+    mem_units = "MB";
   }
 
   // Response and SVG header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
 
-  ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"600\" viewBox=\"0 0 1200 600\">\n");
+  ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"550\" viewBox=\"0 0 1200 550\">\n");
 
   // Grid lines
-  html_puts(http, "<path d=\"M100 10h1000M100 110h1000M100 210h1000M100 310h1000M100 410h1000\" fill=\"none\" stroke=\"gray\" />\n");
+  html_puts(http, "<path d=\"M80 10h1000M80 110h1000M80 210h1000M80 310h1000M80 410h1000\" fill=\"none\" stroke=\"gray\" />\n");
 
   if (num_data > 1)
   {
@@ -688,19 +676,21 @@ send_history_svg(http_t *http,		// I - Client connection
       disp_data = MAX_DATA;
     else if (num_data > (MAX_DATA / 4))
       disp_data = MAX_DATA / 2;
-    else
+    else if (num_data > (MAX_DATA / 8))
       disp_data = MAX_DATA / 4;
+    else
+      disp_data = MAX_DATA / 8;
 
     disp_scale = 1000.0 / disp_data;
 
     // Draw blue graph of memory
-    ret &= html_puts(http, "<path d=\"M100 510");
+    ret &= html_puts(http, "<path d=\"M80 510");
 
     for (i = 0, dataptr = data; i < num_data; i ++, dataptr ++)
     {
       int y = (int)(510.0 - 400.0 * dataptr->mem_k / max_mem);
 
-      ret &= html_printf(http, "L%.1f %d", 100.0 + i * disp_scale, y < 0 ? 0 : y);
+      ret &= html_printf(http, "L%.1f %d", 80.0 + i * disp_scale, y < 0 ? 0 : y);
     }
 
     ret &= html_puts(http, "V510z\" fill=\"#6699ff\" stroke=\"blue\" />\n");
@@ -710,50 +700,48 @@ send_history_svg(http_t *http,		// I - Client connection
 
     for (i = 0, dataptr = data; i < num_data; i ++, dataptr ++)
     {
-      int y = 500 - 4 * dataptr->cpu_percent;
+      int y = 510 - 4 * dataptr->cpu_percent;
 
-      ret &= html_printf(http, "%s%.1f %d", i == 0 ? "M" : "L", 100.0 + i * disp_scale, y < 0 ? 0 : y);
+      ret &= html_printf(http, "%s%.1f %d", i == 0 ? "M" : "L", 80.0 + i * disp_scale, y < 0 ? 0 : y);
     }
 
-    ret &= html_puts(http, "\" fill=\"none\" stroke=\"red\" stroke-width=\"2\" />\n");
+    ret &= html_puts(http, "\" fill=\"none\" stroke=\"red\" stroke-width=\"3\" />\n");
   }
 
   MSYSMON_DEBUG("Unlock...\n");
   cupsRWUnlock(&msysmonData.rwlock);
 
   // Draw axis lines and labels
-  html_puts(http, "<path d=\"M100 10L100 510L1100 510L1100 10\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
-  html_puts(http, "<path d=\"M80 10h20M80 110h20M80 210h20M80 310h20M80 410h20M80 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
-  html_puts(http, "<path d=\"M1100 110h20M1100 210h20M1100 310h20M1100 410h20M1100 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
-  html_puts(http, "<path d=\"M100 510v20M200 510v20M300 510v20M400 510v20M500 510v20M600 510v20M700 510v20M800 510v20M900 510v20M1000 510v20M1100 510v20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M80 10L80 510L1080 510L1080 10\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M60 10h20M60 110h20M60 210h20M60 310h20M60 410h20M60 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M1080 110h20M1080 210h20M1080 310h20M1080 410h20M1080 510h20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
+  html_puts(http, "<path d=\"M80 510v20M180 510v20M280 510v20M380 510v20M480 510v20M580 510v20M680 510v20M780 510v20M880 510v20M980 510v20M1080 510v20\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n");
 
   disp_secs = disp_data * msysmonData.interval;
   if (disp_secs <= 86400)
-    disp_off = 70;
-  else if (disp_secs <= (7 * 86400))
     disp_off = 50;
+  else if (disp_secs <= (7 * 86400))
+    disp_off = 30;
   else
-    disp_off = 40;
+    disp_off = 20;
 
   for (i = 0; i <= 10; i ++)
     ret &= html_printf(http, "<text x=\"%d\" y=\"545\" font-family=\"sans-serif\" font-size=\"15\" fill=\"black\">%s</text>\n", disp_off + i * 100, get_datetime(data_start + i * disp_secs / 10, disp_secs, datetime, sizeof(datetime)));
 
-  ret &= html_puts(http, "<text x=\"25\" y=\"15\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">125%</text>\n");
-  ret &= html_puts(http, "<text x=\"25\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"red\">CPU</text>\n");
-  ret &= html_puts(http, "<text x=\"25\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">100%</text>\n");
-  ret &= html_puts(http, "<text x=\"35\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">75%</text>\n");
-  ret &= html_puts(http, "<text x=\"35\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">50%</text>\n");
-  ret &= html_puts(http, "<text x=\"35\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">25%</text>\n");
-  ret &= html_puts(http, "<text x=\"45\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">0%</text>\n");
+  ret &= html_puts(http, "<text x=\"5\" y=\"15\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">125%</text>\n");
+  ret &= html_puts(http, "<text x=\"5\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"red\">CPU</text>\n");
+  ret &= html_puts(http, "<text x=\"5\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">100%</text>\n");
+  ret &= html_puts(http, "<text x=\"15\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">75%</text>\n");
+  ret &= html_puts(http, "<text x=\"15\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">50%</text>\n");
+  ret &= html_puts(http, "<text x=\"15\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">25%</text>\n");
+  ret &= html_puts(http, "<text x=\"25\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"red\">0%</text>\n");
 
-  ret &= html_puts(http, "<text x=\"1120\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"#6699ff\">Memory</text>\n");
-  ret &= html_printf(http, "<text x=\"1125\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", max_mem / mem_div, mem_units);
-  ret &= html_printf(http, "<text x=\"1125\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.75 * max_mem / mem_div, mem_units);
-  ret &= html_printf(http, "<text x=\"1125\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.5 * max_mem / mem_div, mem_units);
-  ret &= html_printf(http, "<text x=\"1125\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.25 * max_mem / mem_div, mem_units);
-  ret &= html_printf(http, "<text x=\"1125\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">0.0%s</text>\n", mem_units);
-
-  ret &= html_printf(http, "<text x=\"100\" y=\"585\" font-family=\"sans-serif\" font-size=\"30\" font-weight=\"bold\" fill=\"black\">%s</text>\n", title);
+  ret &= html_puts(http, "<text x=\"1100\" y=\"65\" font-family=\"sans-serif\" font-size=\"20\" font-weight=\"bold\" fill=\"#6699ff\">Memory</text>\n");
+  ret &= html_printf(http, "<text x=\"1105\" y=\"115\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1105\" y=\"215\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.75 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1105\" y=\"315\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.5 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1105\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.25 * max_mem / mem_div, mem_units);
+  ret &= html_printf(http, "<text x=\"1105\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">0.0%s</text>\n", mem_units);
 
   // SVG footer
   ret &= html_puts(http, "</svg>\n");
@@ -810,12 +798,12 @@ send_html_report(http_t *http,		// I - Client connection
     {
       data = proc->data + proc->num_data - 1;
 
-      ret &= html_printf(http, "    <tr><td>%d</td><td><div class=\"modal\" id=\"pid%d\"><span class=\"mclose\" onclick=\"close_modal('pid%d');\">&times;</span><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div>%s%s</td><td><button onclick=\"open_modal('pid%d');\">%u%%</button></td><td><button onclick=\"open_modal('pid%d');\">", (int)proc->pid, (int)proc->pid, (int)proc->pid, (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, data->cpu_percent, (int)proc->pid);
+      ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s<button onclick=\"toggle_graph('pid%d');\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" class=\"bi bi-graph-up\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" d=\"M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07\"/></svg></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
 
       if (data->mem_k > 1048576)
-	ret &= html_printf(http, "%.1fGB</button></td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
+	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
       else
-	ret &= html_printf(http, "%.1fMB</button></td><td>%u</td></tr>\n", data->mem_k / 1024.0, data->tp_count);
+	ret &= html_printf(http, "%.1fMB</td><td>%u</td></tr>\n", data->mem_k / 1024.0, data->tp_count);
     }
 
     ret &= html_puts(http, "  </tbody>\n</table></p>\n");
