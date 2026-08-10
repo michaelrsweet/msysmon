@@ -255,9 +255,9 @@ html_header(http_t     *http,		// I - Client connection
                      "<!DOCTYPE html>\n"
 		     "<html>\n"
 		     "  <head>\n"
-		     "    <title>%s%sMike's System Monitor</title>\n"
+		     "    <title>%s</title>\n"
 		     "    <link rel=\"shortcut icon\" href=\"/favicon.png\" type=\"image/png\">\n",
-		     title ? title : "", title ? " - " : "");
+		     title ? title : msysmonData.name);
 
   if (refresh > 0)
     ret &= html_printf(http, "    <meta http-equiv=\"refresh\" content=\"%d\">\n", refresh);
@@ -599,6 +599,7 @@ send_history_svg(http_t *http,		// I - Client connection
   unsigned	i;			// Looping var
   long		pid;			// Process ID
   msysmon_proc_t *proc;			// Process
+  char		title[256];		// Graph title
   time_t	data_start;		// Start time of data
   unsigned	num_data;		// Number of data elements
   msysmon_data_t *data = NULL,		// Data to display
@@ -656,6 +657,7 @@ send_history_svg(http_t *http,		// I - Client connection
           if (high_mem < max_mem)
             break;
         }
+        snprintf(title, sizeof(title), "PID %d (%s) Statistics", (int)proc->pid, proc->command);
         break;
       }
     }
@@ -667,12 +669,14 @@ send_history_svg(http_t *http,		// I - Client connection
     data       = msysmonData.data;
     max_mem    = msysmonGetSystemMemory();
     num_data   = msysmonData.num_data;
+
+    cupsCopyString(title, msysmonData.name, sizeof(title));
   }
 
   // Response and SVG header...
   ret &= send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
 
-  ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"550\" viewBox=\"0 0 1200 550\">\n");
+  ret &= html_puts(http, "<?xml version=\"1.0\" standalone=\"no\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1200\" height=\"600\" viewBox=\"0 0 1200 600\">\n");
 
   // Grid lines
   html_puts(http, "<path d=\"M100 10h1000M100 110h1000M100 210h1000M100 310h1000M100 410h1000\" fill=\"none\" stroke=\"gray\" />\n");
@@ -749,6 +753,8 @@ send_history_svg(http_t *http,		// I - Client connection
   ret &= html_printf(http, "<text x=\"1125\" y=\"415\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">%.1f%s</text>\n", 0.25 * max_mem / mem_div, mem_units);
   ret &= html_printf(http, "<text x=\"1125\" y=\"515\" font-family=\"sans-serif\" font-size=\"20\" fill=\"#6699ff\">0.0%s</text>\n", mem_units);
 
+  ret &= html_printf(http, "<text x=\"100\" y=\"585\" font-family=\"sans-serif\" font-size=\"30\" font-weight=\"bold\" fill=\"black\">%s</text>\n", title);
+
   // SVG footer
   ret &= html_puts(http, "</svg>\n");
   httpWrite(http, "", 0);
@@ -779,7 +785,7 @@ send_html_report(http_t *http,		// I - Client connection
 
   data = msysmonData.data + msysmonData.num_data - 1;
 
-  ret &= html_puts(http, "<h1>System Monitor History</h1>\n");
+  ret &= html_printf(http, "<h1>%s</h1>\n", msysmonData.name);
   if (data->mem_k > 1048576)
     ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fGB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1048576.0, data->tp_count);
   else

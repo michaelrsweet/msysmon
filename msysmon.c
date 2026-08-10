@@ -39,7 +39,8 @@ main(int  argc,				// I - Number of command-line arguments
   double		val;		// Value
   char			*end;		// Pointer into value
   char			host[256],	// Hostname
-			port[255];	// Service port
+			port[255],	// Service port
+			*nameptr;	// Pointer into service name
   http_addrlist_t	*addrlist;	// Listen address
   time_t		collect_time;	// Next data collection time
   cups_dnssd_t		*dnssd;		// DNS-SD context
@@ -273,21 +274,19 @@ main(int  argc,				// I - Number of command-line arguments
     return (1);
   }
 
+  // Advertise the web page...
   fprintf(stderr, "msysmon: Web interface available at 'http://%s:%d/'.\n", host, msysmonData.port);
 
-  // Advertise the web page...
+  cupsCopyString(msysmonData.name, host, sizeof(msysmonData.name));
+  if ((nameptr = strchr(msysmonData.name, '.')) != NULL)
+    *nameptr = '\0';
+  cupsConcatString(msysmonData.name, " Statistics", sizeof(msysmonData.name));
+
   if ((dnssd = cupsDNSSDNew(/*error_cb*/NULL, /*cb_data*/NULL)) != NULL)
   {
     bool	success = false;		// Did we advertise successfully?
-    char	name[256],		// Service name
-		*nameptr;		// Pointer into name
 
-    cupsCopyString(name, host, sizeof(name));
-    if ((nameptr = strchr(name, '.')) != NULL)
-      *nameptr = '\0';
-    cupsConcatString(name, " statistics", sizeof(name));
-
-    if ((service = cupsDNSSDServiceNew(dnssd, CUPS_DNSSD_IF_INDEX_ANY, name, dnssd_cb, /*cb_data*/NULL)) != NULL)
+    if ((service = cupsDNSSDServiceNew(dnssd, CUPS_DNSSD_IF_INDEX_ANY, msysmonData.name, dnssd_cb, /*cb_data*/NULL)) != NULL)
     {
       success = cupsDNSSDServiceAdd(service, "_http._tcp", /*domain*/NULL, /*host*/NULL, msysmonData.port, /*num_txt*/0, /*txt*/NULL);
       if (success)
@@ -295,7 +294,7 @@ main(int  argc,				// I - Number of command-line arguments
     }
 
     if (!success)
-      fprintf(stderr, "msysmon: Unable to advertise web interface as '%s'.\n", name);
+      fprintf(stderr, "msysmon: Unable to advertise web interface as '%s'.\n", msysmonData.name);
   }
   else
   {

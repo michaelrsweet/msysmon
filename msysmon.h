@@ -74,6 +74,7 @@ typedef struct msysmon_proc_s		// Record of per-process data
 
 typedef struct msysmon_db_s		// Record of all data
 {
+  // "Static" data...
   int		interval;		// Sampling interval
   uint16_t	cpu_limit;		// CPU monitoring limit (percent)
   uint32_t	mem_limit;		// Memory limit (kibibytes)
@@ -81,10 +82,12 @@ typedef struct msysmon_db_s		// Record of all data
   unsigned	num_commands;		// Number of commands
   char		commands[MAX_COMMANDS][MAX_COMMAND];
 					// Command names
-
-  cups_rwlock_t	rwlock;			// Reader/writer lock
+  char		name[256];		// Name of system monitor
   nfds_t	num_listeners;		// Number of listeners
   struct pollfd	listeners[2];		// Listeners
+
+  // Data subject to the reader/writer lock...
+  cups_rwlock_t	rwlock;			// Reader/writer lock
   time_t	data_start;		// Start time for data samples
   unsigned	num_data;		// Number of system data samples
   msysmon_data_t data[MAX_DATA];	// System data samples
