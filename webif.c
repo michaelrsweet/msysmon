@@ -9,6 +9,7 @@
 
 #include "msysmon.h"
 #include <stdarg.h>
+#include <time.h>
 #include "msysmon_png.h"
 
 
@@ -834,6 +835,7 @@ send_html_report(http_t *http,		// I - Client connection
                  char   *options)	// I - Options or `NULL` if none
 {
   bool		ret = true;		// Return value
+  struct timespec uptime;		// System up time
   unsigned	i;			// Looping var
   int		f;			// Field number
   msysmon_data_t *data;			// Pointer to last update
@@ -883,11 +885,15 @@ send_html_report(http_t *http,		// I - Client connection
 
   data = msysmonData.data + msysmonData.num_data - 1;
 
-  ret &= html_printf(http, "<h1>%s</h1>\n", msysmonData.name);
+  clock_gettime(CLOCK_MONOTONIC, &uptime);
+
+  ret &= html_printf(http, "<h1>%s</h1>\n<p>Current CPU: %u%% &nbsp; Memory: ", msysmonData.name, data->cpu_percent);
   if (data->mem_k > 1048576)
-    ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fGB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1048576.0, data->tp_count);
+    ret &= html_printf(http, "%.1fGiB", data->mem_k / 1048576.0);
   else
-    ret &= html_printf(http, "<p>Current CPU: %u%% &nbsp; Memory: %.1fMB &nbsp; Processes: %u</p>\n", data->cpu_percent, data->mem_k / 1024.0, data->tp_count);
+    ret &= html_printf(http, "%.1fMiB", data->mem_k / 1024.0);
+
+  ret &= html_printf(http, " &nbsp; Processes: %u &nbsp; Up: %d day(s), %d:%02d:%02d</p>\n", data->tp_count, (int)(uptime.tv_sec / 86400), (int)((uptime.tv_sec / 3600) % 24), (int)((uptime.tv_sec / 60) % 60), (int)(uptime.tv_sec % 60));
 
   ret &= html_puts(http, "<p><img src=\"/history.svg\" width=\"100%\"></p>\n");
 
