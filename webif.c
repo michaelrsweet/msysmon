@@ -930,11 +930,11 @@ send_html_report(http_t *http,		// I - Client connection
     {
       if (msysmonData.sort_by == f)
       {
-        ret &= html_printf(http, "<th><a href=\"/?sort_by=-%s\">&mapstoup; %s &mapstoup;</a></th>", fields[f - 1], headings[f - 1]);
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=-%s\">&mapstoup;&nbsp;%s&nbsp;&mapstoup;</a></th>", fields[f - 1], headings[f - 1]);
       }
       else if (msysmonData.sort_by == -f)
       {
-        ret &= html_printf(http, "<th><a href=\"/?sort_by=%s\">&mapstodown; %s &mapstodown;</a></th>", fields[f - 1], headings[f - 1]);
+        ret &= html_printf(http, "<th><a href=\"/?sort_by=%s\">&mapstodown;&nbsp;%s&nbsp;&mapstodown;</a></th>", fields[f - 1], headings[f - 1]);
       }
       else if (f <= FIELD_NAME)
       {
