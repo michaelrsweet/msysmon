@@ -151,35 +151,19 @@ compare_procs(msysmon_proc_t **a,	// I - First process
   {
     case -FIELD_CPU :
         if (adata && bdata)
-        {
-          int acpu = a[0]->end_time ? 0 : (int)adata->cpu_percent;
-          int bcpu = b[0]->end_time ? 0 : (int)bdata->cpu_percent;
-          result = bcpu - acpu;
-        }
+          result = (int)bdata->cpu_percent - (int)adata->cpu_percent;
         break;
     case FIELD_CPU :
         if (adata && bdata)
-        {
-          int acpu = a[0]->end_time ? 0 : (int)adata->cpu_percent;
-          int bcpu = b[0]->end_time ? 0 : (int)bdata->cpu_percent;
-          result = acpu - bcpu;
-        }
+          result = (int)adata->cpu_percent - (int)bdata->cpu_percent;
         break;
     case -FIELD_MEM :
         if (adata && bdata)
-        {
-          int amem = a[0]->end_time ? 0 : (int)adata->mem_k;
-          int bmem = b[0]->end_time ? 0 : (int)bdata->mem_k;
-          result = bmem - amem;
-        }
+          result = (int)bdata->mem_k - (int)adata->mem_k;
         break;
     case FIELD_MEM :
         if (adata && bdata)
-        {
-          int amem = a[0]->end_time ? 0 : (int)adata->mem_k;
-          int bmem = b[0]->end_time ? 0 : (int)bdata->mem_k;
-          result = amem - bmem;
-        }
+          result = (int)adata->mem_k - (int)bdata->mem_k;
         break;
     case -FIELD_NAME :
         result = strcasecmp(b[0]->command, a[0]->command);
@@ -195,19 +179,11 @@ compare_procs(msysmon_proc_t **a,	// I - First process
         break;
     case -FIELD_THREADS :
         if (adata && bdata)
-        {
-          int acount = a[0]->end_time ? 0 : (int)adata->tp_count;
-          int bcount = b[0]->end_time ? 0 : (int)bdata->tp_count;
-          result = bcount - acount;
-        }
+          result = (int)bdata->tp_count - (int)adata->tp_count;
         break;
     case FIELD_THREADS :
         if (adata && bdata)
-        {
-          int acount = a[0]->end_time ? 0 : (int)adata->tp_count;
-          int bcount = b[0]->end_time ? 0 : (int)bdata->tp_count;
-          result = acount - bcount;
-        }
+          result = (int)adata->tp_count - (int)bdata->tp_count;
         break;
   }
 
@@ -374,6 +350,9 @@ html_header(http_t     *http,		// I - Client connection
 		   "}\n"
 		   "tbody tr:nth-child(even) {\n"
 		   "  background: #eeeeee;\n"
+		   "}\n"
+		   "tbody tr.blank {\n"
+		   "  background: white;\n"
 		   "}\n"
 		   "tbody tr.dim {\n"
 		   "  color: #999999;\n"
@@ -919,6 +898,8 @@ send_html_report(http_t *http,		// I - Client connection
     msysmon_proc_t	*procs[MAX_PROCS];
 					// Sorted list of processes
     msysmon_proc_t	*proc;		// Current process
+    bool		have_terminated = false;
+					// Do we have terminated processes?
 
     for (i = 0, proc = msysmonData.processes; i < msysmonData.num_processes; i ++, proc ++)
       procs[i] = proc;
@@ -949,10 +930,35 @@ send_html_report(http_t *http,		// I - Client connection
 
     for (i = 0; i < msysmonData.num_processes; i ++)
     {
+      if (procs[i]->end_time > 0)
+      {
+        have_terminated = true;
+        continue;
+      }
+
       proc = procs[i];
       data = proc->data + proc->num_data - 1;
 
-      ret &= html_printf(http, "    <tr class=\"%s\"><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", proc->end_time ? "dim" : "", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
+      ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
+
+      if (data->mem_k > 1048576)
+	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
+      else
+	ret &= html_printf(http, "%.1fMB</td><td>%u</td></tr>\n", data->mem_k / 1024.0, data->tp_count);
+    }
+
+    if (have_terminated)
+      ret &= html_puts(http, "    <tr class=\"blank\"><td colspan=\"5\">&hellip;</td></tr>\n");
+
+    for (i = 0; i < msysmonData.num_processes; i ++)
+    {
+      if (procs[i]->end_time == 0)
+        continue;
+
+      proc = procs[i];
+      data = proc->data + proc->num_data - 1;
+
+      ret &= html_printf(http, "    <tr class=\"dim\"><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
 
       if (data->mem_k > 1048576)
 	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
