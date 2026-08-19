@@ -28,6 +28,7 @@ static bool	html_printf(http_t *http, const char *format, ...);
 static bool	html_puts(http_t *http, const char *s);
 
 static bool	send_favicon_png(http_t *http);
+static bool	send_history_csv(http_t *http, char *options);
 static bool	send_history_svg(http_t *http, char *options);
 static bool	send_html_report(http_t *http, char *options);
 static bool	send_http_response(http_t *http, http_status_t status, const char *content_type, size_t content_length, const char *message, ...);
@@ -96,6 +97,8 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
             send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
           else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
             send_http_response(http, HTTP_STATUS_OK, "image/png", sizeof(msysmon_png), /*message*/NULL);
+          else if (!strcmp(resource, "/history.csv"))
+            send_http_response(http, HTTP_STATUS_OK, "text/csv", /*content_length*/0, /*message*/NULL);
           else if (!strcmp(resource, "/history.svg"))
             send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
           else
@@ -108,6 +111,8 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
             send_html_report(http, options);
           else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
             send_favicon_png(http);
+          else if (!strcmp(resource, "/history.csv"))
+            send_history_csv(http, options);
           else if (!strcmp(resource, "/history.svg"))
             send_history_svg(http, options);
           else
@@ -655,6 +660,79 @@ send_favicon_png(http_t *http)		// I - Client connection
 
 
 //
+// 'send_history_csv()' - Send history in CSV format.
+//
+
+static bool				// O - `true` on success, `false` on error
+send_history_csv(http_t *http,		// I - Client connection
+                 char   *options)	// I - Options or `NULL` if none
+{
+  bool		ret = true;		// Return value
+  unsigned	i;			// Looping var
+  long		pid;			// Process ID
+  msysmon_proc_t *proc;			// Process
+  time_t	data_start;		// Start time of data
+  unsigned	num_data;		// Number of data elements
+  msysmon_data_t *data = NULL,		// Data to display
+		*dataptr;		// Current data
+  time_t	data_time;		// Time for data sample
+  struct tm	data_date;		// Date/time values
+  const char	*tp_heading;		// Threads or processes
+
+
+  MSYSMON_DEBUG("Read lock...\n");
+  cupsRWLockRead(&msysmonData.rwlock);
+
+  // See if we have a PID in the options?
+  if (options && !strncmp(options, "pid=", 4))
+  {
+    // Yes, show the process info
+    pid = strtol(options + 4, NULL, 10);
+    for (i = msysmonData.num_processes, proc = msysmonData.processes; i > 0; i --, proc ++)
+    {
+      if (proc->pid == (pid_t)pid)
+      {
+        data_start = proc->data_start;
+        data       = proc->data;
+        num_data   = proc->num_data;
+        tp_heading = "# Threads";
+        break;
+      }
+    }
+  }
+
+  if (!data)
+  {
+    data_start = msysmonData.data_start;
+    data       = msysmonData.data;
+    num_data   = msysmonData.num_data;
+    tp_heading = "# Processes";
+  }
+
+  // Response and CSV header...
+  ret &= send_http_response(http, HTTP_STATUS_OK, "text/csv", /*content_length*/0, /*message*/NULL);
+
+  ret &= html_printf(http, "Date/Time,CPU %%,Memory KiB,%s\n", tp_heading);
+
+  for (i = 0, dataptr = data; i < num_data; i ++, dataptr ++)
+  {
+    data_time = data_start + i * msysmonData.interval;
+    localtime_r(&data_time, &data_date);
+
+    ret &= html_printf(http, "%04d-%02d-%02d %02d:%02d:%02d,%u,%u,%u\n", data_date.tm_year + 1900, data_date.tm_mon + 1, data_date.tm_mday, data_date.tm_hour, data_date.tm_min, data_date.tm_sec, data->cpu_percent, data->mem_k, data->tp_count);
+  }
+
+  MSYSMON_DEBUG("Unlock...\n");
+  cupsRWUnlock(&msysmonData.rwlock);
+
+  // Finish up and return...
+  httpWrite(http, "", 0);
+
+  return (ret);
+}
+
+
+//
 // 'send_history_svg()' - Send a history graph in SVG format.
 //
 
@@ -895,7 +973,7 @@ send_html_report(http_t *http,		// I - Client connection
 
   ret &= html_printf(http, " &nbsp; Processes: %u &nbsp; Up: %d day(s), %d:%02d:%02d</p>\n", data->tp_count, (int)(uptime.tv_sec / 86400), (int)((uptime.tv_sec / 3600) % 24), (int)((uptime.tv_sec / 60) % 60), (int)(uptime.tv_sec % 60));
 
-  ret &= html_puts(http, "<p><img src=\"/history.svg\" width=\"100%\"></p>\n");
+  ret &= html_puts(http, "<p style=\"text-align: center;\"><img src=\"/history.svg\" width=\"100%\"><br><a href=\"/history.csv\">Download CSV</a></p>\n");
 
   ret &= html_printf(http, "<h2>Interesting Processes (%u)</h2>\n", msysmonData.num_processes);
 
@@ -945,7 +1023,7 @@ send_html_report(http_t *http,		// I - Client connection
       proc = procs[i];
       data = proc->data + proc->num_data - 1;
 
-      ret &= html_printf(http, "    <tr><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
+      ret &= html_printf(http, "    <tr><td>%d</td><td>%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"><br><a href=\"/history.csv?pid=%d\">Download CSV</a></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, (int)proc->pid, (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
 
       if (data->mem_k > 1048576)
 	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
@@ -964,7 +1042,7 @@ send_html_report(http_t *http,		// I - Client connection
       proc = procs[i];
       data = proc->data + proc->num_data - 1;
 
-      ret &= html_printf(http, "    <tr class=\"dim\"><td>%d</td><td>%s%s <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, proc->end_time ? " (terminated)" : "", (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
+      ret &= html_printf(http, "    <tr class=\"dim\"><td>%d</td><td>%s (terminated) <button onclick=\"toggle_graph('pid%d');\"><img src=\"/favicon.png\" width=\"16\" height=\"16\"></button><div class=\"graph\" id=\"pid%d\"><img src=\"/history.svg?pid=%d\" width=\"100%%\"><br><a href=\"/history.csv?pid=%d\">Download CSV</a></div></td><td>%u%%</td><td>", (int)proc->pid, proc->command, (int)proc->pid, (int)proc->pid, (int)proc->pid, (int)proc->pid, data->cpu_percent);
 
       if (data->mem_k > 1048576)
 	ret &= html_printf(http, "%.1fGB</td><td>%u</td></tr>\n", data->mem_k / 1048576.0, data->tp_count);
