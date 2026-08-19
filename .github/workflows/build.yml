@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-linux:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout msysmon sources
+      uses: actions/checkout@v7
+    - name: Update Build Environment
+      run: sudo apt-get update --fix-missing -y
+    - name: Install Prerequisites
+      run: sudo apt-get install -y cppcheck zlib1g-dev
+    - name: Checkout libcups3
+      uses: actions/checkout@v7
+      with:
+        repository: OpenPrinting/libcups
+        path: libcups
+        submodules: recursive
+    - name: Configure libcups3
+      run: cd libcups; ./configure --enable-debug
+    - name: Build/install libcups3
+      run: cd libcups; make && sudo make install
+    - name: Configure msysmon
+      run: ./configure --enable-debug --enable-sanitizer --enable-maintainer
+    - name: Build msysmon
+      run: make
+
+  build-macos:
+
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout msysmon sources
+      uses: actions/checkout@v7
+    - name: Checkout libcups3
+      uses: actions/checkout@v7
+      with:
+        repository: OpenPrinting/libcups
+        path: libcups
+        submodules: recursive
+    - name: Configure libcups3
+      run: cd libcups; ./configure --enable-debug
+    - name: Build/install libcups3
+      run: cd libcups; make && sudo make install
+    - name: Configure msysmon
+      run: ./configure --enable-debug --enable-sanitizer --enable-maintainer
+    - name: Build msysmon
+      run: make

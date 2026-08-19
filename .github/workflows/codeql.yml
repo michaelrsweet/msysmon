@@ -56,6 +56,16 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
+    - name: Checkout libcups3
+      uses: actions/checkout@v7
+      with:
+        repository: OpenPrinting/libcups
+        path: libcups
+        submodules: recursive
+    - name: Configure libcups3
+      run: cd libcups; ./configure --enable-debug
+    - name: Build/install libcups3
+      run: cd libcups; make && sudo make install
 
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
