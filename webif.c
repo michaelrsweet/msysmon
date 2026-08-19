@@ -45,6 +45,7 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
   http_status_t	status;			// HTTP status code
   char		resource[1024],		// Resource path
 		*options;		// Pointer to options, if any
+  bool		close_it;		// Close connection?
 
 
   // Loop reading requests...
@@ -88,35 +89,43 @@ msysmonRunWebIf(http_t *http)		// I - Client connection
     switch (state)
     {
       case HTTP_STATE_OPTIONS :
-          send_http_response(http, HTTP_STATUS_OK, /*content_type*/NULL, /*content_length*/0, /*message*/NULL);
-          httpWrite(http, "", 0);
+          if (!send_http_response(http, HTTP_STATUS_OK, /*content_type*/NULL, /*content_length*/0, /*message*/NULL))
+            goto close_client;
+
+          if (httpWrite(http, "", 0) < 0)
+            goto close_client;
           break;
 
       case HTTP_STATE_HEAD :
           if (!strcmp(resource, "/"))
-            send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
+            close_it = send_http_response(http, HTTP_STATUS_OK, "text/html", /*content_length*/0, /*message*/NULL);
           else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
-            send_http_response(http, HTTP_STATUS_OK, "image/png", sizeof(msysmon_png), /*message*/NULL);
+            close_it = send_http_response(http, HTTP_STATUS_OK, "image/png", sizeof(msysmon_png), /*message*/NULL);
           else if (!strcmp(resource, "/history.csv"))
-            send_http_response(http, HTTP_STATUS_OK, "text/csv", /*content_length*/0, /*message*/NULL);
+            close_it = send_http_response(http, HTTP_STATUS_OK, "text/csv", /*content_length*/0, /*message*/NULL);
           else if (!strcmp(resource, "/history.svg"))
-            send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
+            close_it = send_http_response(http, HTTP_STATUS_OK, "image/svg+xml", /*content_length*/0, /*message*/NULL);
           else
-            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, /*message*/NULL);
-          httpWrite(http, "", 0);
+            close_it = send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, /*message*/NULL);
+
+          if (close_it || httpWrite(http, "", 0) < 0)
+            goto close_client;
           break;
 
       case HTTP_STATE_GET :
           if (!strcmp(resource, "/"))
-            send_html_report(http, options);
+            close_it = send_html_report(http, options);
           else if (!strcmp(resource, "/apple-touch-icon.png") || !strcmp(resource, "/favicon.png"))
-            send_favicon_png(http);
+            close_it = send_favicon_png(http);
           else if (!strcmp(resource, "/history.csv"))
-            send_history_csv(http, options);
+            close_it = send_history_csv(http, options);
           else if (!strcmp(resource, "/history.svg"))
-            send_history_svg(http, options);
+            close_it = send_history_svg(http, options);
           else
-            send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, "The resource '%s' is not available from this server.\n", resource);
+            close_it = send_http_response(http, HTTP_STATUS_NOT_FOUND, "text/plain", /*content_length*/0, "The resource '%s' is not available from this server.\n", resource);
+
+          if (close_it)
+            goto close_client;
           break;
 
       default :
@@ -300,7 +309,8 @@ html_footer(http_t *http)		// I - Client connection
 
 
   ret &= html_puts(http, "  </body>\n</html>\n");
-  httpWrite(http, "", 0);
+  if (httpWrite(http, "", 0) < 0)
+    ret = false;
 
   return (ret);
 }
@@ -445,7 +455,7 @@ html_printf(http_t     *http,		// I - Client connection
 
       if (*format == '%')
       {
-        httpWrite(http, "%", 1);
+        ret &= httpWrite(http, "%", 1) > 0;
         format ++;
 	start = format;
 	continue;
@@ -726,7 +736,8 @@ send_history_csv(http_t *http,		// I - Client connection
   cupsRWUnlock(&msysmonData.rwlock);
 
   // Finish up and return...
-  httpWrite(http, "", 0);
+  if (httpWrite(http, "", 0) < 0)
+    ret = false;
 
   return (ret);
 }
@@ -898,7 +909,8 @@ send_history_svg(http_t *http,		// I - Client connection
 
   // SVG footer
   ret &= html_puts(http, "</svg>\n");
-  httpWrite(http, "", 0);
+  if (httpWrite(http, "", 0) < 0)
+    ret = false;
 
   return (ret);
 }

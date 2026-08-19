@@ -66,7 +66,7 @@ msysmonCollectData(void)
 uint32_t				// O - Real memory in kibibytes
 msysmonGetSystemMemory(void)
 {
-  static uint32_t mem_k = 0;		// Memory in kibibytes
+  static uint32_t mem_k = 1;		// Memory in kibibytes
 #ifdef __APPLE__
   int64_t	mem;			// Memory in bytes
   size_t	memsize;		// Size of memory
@@ -110,7 +110,7 @@ msysmonGetSystemMemory(void)
   }
 #endif // __APPLE__
 
-  return (mem_k);
+  return (mem_k == 0 ? 1 : mem_k);
 }
 
 
@@ -448,7 +448,7 @@ get_system_info(void)
       if ((ptr = strchr(line, ':')) != NULL)
         *ptr++ = '\0';
 
-      if (!strcmp(line, "Active"))
+      if (!strcmp(line, "Active") && ptr)
       {
         mem = (uint32_t)strtol(ptr, NULL, 10);
         break;
