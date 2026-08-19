@@ -1,7 +1,7 @@
 Changes in Mike's System Monitor
 ================================
 
-v1.0.1 - YYYY-MM-DD
+v1.1.0 - YYYY-MM-DD
 -------------------
 
 - Now show system up time on web page (Issue #3)
