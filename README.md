@@ -3,6 +3,8 @@ Mike's System Monitor (msysmon)
 
 ![Version](https://img.shields.io/github/v/release/michaelrsweet/msysmon?include_prereleases)
 ![Apache 2.0](https://img.shields.io/github/license/michaelrsweet/msysmon)
+[![Build](https://img.shields.io/github/actions/workflow/status/michaelrsweet/msysmon/build.yml)](https://github.com/michaelrsweet/msysmon/actions/workflows/build.yml)
+[![Coverity Scan Status](https://img.shields.io/coverity/scan/33236.svg)](https://scan.coverity.com/projects/michaelrsweet-msysmon)
 
 `msysmon` is a lightweight administrator/developer tool for monitoring the CPU,
 memory, and threads used by processes on a Linux or macOS system.  I wrote it
