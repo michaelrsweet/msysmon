@@ -17,7 +17,7 @@ jobs:
     - name: Update Build Environment
       run: sudo apt-get update --fix-missing -y
     - name: Install Prerequisites
-      run: sudo apt-get install -y cppcheck zlib1g-dev
+      run: sudo apt-get install -y avahi-daemon cppcheck libavahi-client-dev libjpeg-dev libpam-dev libpng-dev libssl-dev libusb-1.0-0-dev zlib1g-dev
     - name: Checkout libcups3
       uses: actions/checkout@v7
       with:
