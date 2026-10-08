@@ -1,7 +1,7 @@
 Changes in Mike's System Monitor
 ================================
 
-v1.1.0 - YYYY-MM-DD
+v1.1.0 - 2026-10-08
 -------------------
 
 - Added CSV export/download of usage data from the web interface (Issue #2)
